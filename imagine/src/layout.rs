@@ -103,11 +103,24 @@ impl Component for Size {
 }
 
 pub struct LayoutContext<'a, 'b> {
-    pub(crate) positions: &'a mut WriteStorage<'b, Position>,
-    pub(crate) sizes: &'a mut WriteStorage<'b, Size>,
+    positions: &'a mut WriteStorage<'b, Position>,
+    sizes: &'a mut WriteStorage<'b, Size>,
+    hovered_tags: &'a Option<Vec<u64>>,
 }
 
 impl<'a, 'b> LayoutContext<'a, 'b> {
+    pub(crate) fn new(
+        positions: &'a mut WriteStorage<'b, Position>,
+        sizes: &'a mut WriteStorage<'b, Size>,
+        hovered_tags: &'a Option<Vec<u64>>,
+    ) -> LayoutContext<'a, 'b> {
+        LayoutContext {
+            positions,
+            sizes,
+            hovered_tags,
+        }
+    }
+
     pub fn set_position(&mut self, widget: WidgetId, position: Position) {
         self.positions.insert(widget.0, position).ok();
     }
@@ -116,10 +129,11 @@ impl<'a, 'b> LayoutContext<'a, 'b> {
         *self.sizes.get(widget.0).unwrap()
     }
 
-    pub(crate) fn new(
-        positions: &'a mut WriteStorage<'b, Position>,
-        sizes: &'a mut WriteStorage<'b, Size>,
-    ) -> LayoutContext<'a, 'b> {
-        LayoutContext { positions, sizes }
+    pub fn is_hovered(&self, tag: u64) -> bool {
+        if let Some(hovered_tags) = &self.hovered_tags {
+            hovered_tags.contains(&tag)
+        } else {
+            false
+        }
     }
 }

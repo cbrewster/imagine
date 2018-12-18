@@ -1,4 +1,6 @@
-use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
+use imagine::{
+    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId,
+};
 
 pub struct Split {
     left: WidgetId,
@@ -23,6 +25,7 @@ impl Widget for Split {
         &mut self,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
+        _interactive_state: InteractiveState,
         size: Option<Size>,
     ) -> LayoutResult {
         match size {

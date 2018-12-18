@@ -1,7 +1,8 @@
 use crate::{
     layout::{Geometry, Position, Size},
+    render::Interactive,
     widget::WidgetComponent,
-    WidgetId, WindowComponent,
+    RenderContext, WidgetId, WindowComponent,
 };
 use specs::{Entities, Join, ReadStorage, System, WriteStorage};
 use webrender::api::*;
@@ -15,9 +16,13 @@ impl<'a> System<'a> for RenderSystem {
         ReadStorage<'a, Position>,
         ReadStorage<'a, WidgetComponent>,
         WriteStorage<'a, WindowComponent>,
+        WriteStorage<'a, Interactive>,
     );
 
-    fn run(&mut self, (entities, sizes, positions, widgets, mut windows): Self::SystemData) {
+    fn run(
+        &mut self,
+        (entities, sizes, positions, widgets, mut windows, mut interactive): Self::SystemData,
+    ) {
         for window in (&mut windows).join() {
             if !window.dirty() {
                 continue;
@@ -38,14 +43,17 @@ impl<'a> System<'a> for RenderSystem {
                 RasterSpace::Screen,
             );
 
+            let mut render_context = RenderContext::new(&mut builder);
+
             fn render_entities(
                 children: &[WidgetId],
-                data: (
+                data: &(
                     &ReadStorage<Position>,
                     &ReadStorage<Size>,
                     &ReadStorage<WidgetComponent>,
                 ),
-                builder: &mut DisplayListBuilder,
+                interactive: &mut WriteStorage<Interactive>,
+                render_context: &mut RenderContext,
                 entities: &Entities,
                 offset: Position,
             ) {
@@ -55,15 +63,31 @@ impl<'a> System<'a> for RenderSystem {
 
                     let box_size = Geometry::new(new_position, *size);
 
-                    widget.render(box_size, builder);
-                    render_entities(&widget.children(), data, builder, entities, new_position);
+                    match widget.render(box_size, render_context) {
+                        Some(tag) => {
+                            interactive.insert(widget_id.0, Interactive::new(tag)).ok();
+                        }
+                        None => {
+                            interactive.remove(widget_id.0);
+                        }
+                    }
+
+                    render_entities(
+                        &widget.children(),
+                        data,
+                        interactive,
+                        render_context,
+                        entities,
+                        new_position,
+                    );
                 }
             }
 
             render_entities(
                 &[window.root],
-                (&positions, &sizes, &widgets),
-                &mut builder,
+                &(&positions, &sizes, &widgets),
+                &mut interactive,
+                &mut render_context,
                 &entities,
                 Position::zero(),
             );

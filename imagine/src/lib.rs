@@ -1,4 +1,5 @@
 pub mod layout;
+pub mod render;
 pub mod systems;
 pub mod widget;
 
@@ -14,7 +15,8 @@ use std::collections::HashMap;
 use webrender::api::*;
 
 pub use self::layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size};
-pub use self::widget::{Widget, WidgetId};
+pub use self::render::RenderContext;
+pub use self::widget::{InteractiveState, Widget, WidgetId};
 
 pub struct Imagine<'a, 'b> {
     world: World,
@@ -51,6 +53,8 @@ impl<'a, 'b> Default for Imagine<'a, 'b> {
 
 impl<'a, 'b> Imagine<'a, 'b> {
     pub fn create_window(&mut self, title: &str, root: WidgetId, size: Size) {
+        // TODO: Generate Unique PipelineIds per Window.
+        let pipeline_id = PipelineId(0, 0);
         let window_entity = self
             .world
             .create_entity()
@@ -58,13 +62,13 @@ impl<'a, 'b> Imagine<'a, 'b> {
                 root,
                 layout_size: LayoutSize::zero(),
                 dirty: true,
-                // TODO: Generate Unique PipelineIds per Window.
-                pipeline_id: PipelineId(0, 0),
+                pipeline_id,
                 display_list_builder: None,
+                hovered_tags: None,
             })
             .build();
         let render_window =
-            RenderWindow::new(title, &self.events_loop, window_entity, size).unwrap();
+            RenderWindow::new(title, &self.events_loop, window_entity, size, pipeline_id).unwrap();
         self.windows
             .insert(render_window.window.id(), render_window);
     }
@@ -112,7 +116,35 @@ impl<'a, 'b> Imagine<'a, 'b> {
                                 window_component.set_dirty(true);
                             }
                         }
-                        EventResponse::Continue => {}
+                        EventResponse::Hit(hit) => {
+                            if let Some(window) = windows.get(&window_id) {
+                                let mut window_components =
+                                    world.write_storage::<WindowComponent>();
+
+                                let window_component = window_components
+                                    .get_mut(window.entity)
+                                    .expect("Could not find window component");
+
+                                window_component.hovered_tags = Some(hit);
+                                window_component.set_dirty(true);
+                            }
+                        }
+                        EventResponse::Continue => {
+                            if let Some(window) = windows.get(&window_id) {
+                                let mut window_components =
+                                    world.write_storage::<WindowComponent>();
+
+                                let window_component = window_components
+                                    .get_mut(window.entity)
+                                    .expect("Could not find window component");
+
+                                if window_component.hovered_tags.is_some() {
+                                    window_component.set_dirty(true);
+                                }
+
+                                window_component.hovered_tags = None;
+                            }
+                        }
                     }
                 }
             });
@@ -204,6 +236,7 @@ pub(crate) struct WindowComponent {
     dirty: bool,
     pipeline_id: PipelineId,
     pub(crate) display_list_builder: Option<DisplayListBuilder>,
+    pub(crate) hovered_tags: Option<Vec<u64>>,
 }
 
 impl WindowComponent {
@@ -231,6 +264,7 @@ pub struct RenderWindow {
     epoch: Epoch,
     api: RenderApi,
     entity: Entity,
+    pipeline_id: PipelineId,
 }
 
 impl RenderWindow {
@@ -239,6 +273,7 @@ impl RenderWindow {
         events_loop: &EventsLoop,
         entity: Entity,
         size: Size,
+        pipeline_id: PipelineId,
     ) -> Result<RenderWindow, glutin::CreationError> {
         let window_builder = WindowBuilder::new()
             .with_title(title)
@@ -287,6 +322,7 @@ impl RenderWindow {
             epoch,
             document_id,
             entity,
+            pipeline_id,
         })
     }
 
@@ -306,6 +342,17 @@ impl RenderWindow {
                 self.window.resize(size.to_physical(dpi_factor));
                 EventResponse::Dirty
             }
+            glutin::WindowEvent::CursorMoved { position, .. } => {
+                let world_position = WorldPoint::new(position.x as f32, position.y as f32);
+                let results = self.api.hit_test(
+                    self.document_id,
+                    Some(self.pipeline_id),
+                    world_position,
+                    HitTestFlags::all(),
+                );
+                let hit = results.items.iter().map(|item| item.tag.0).collect();
+                EventResponse::Hit(hit)
+            }
             _ => EventResponse::Continue,
         }
     }
@@ -315,6 +362,7 @@ enum EventResponse {
     Continue,
     Quit,
     Dirty,
+    Hit(Vec<u64>),
 }
 
 struct Notifier {

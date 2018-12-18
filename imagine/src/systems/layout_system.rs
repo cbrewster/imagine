@@ -1,6 +1,7 @@
 use crate::{
     layout::{BoxConstraint, LayoutContext, LayoutResult, Position, Size},
-    widget::WidgetComponent,
+    render::Interactive,
+    widget::{InteractiveState, WidgetComponent},
     WidgetId, WindowComponent,
 };
 use specs::{Join, ReadStorage, System, WriteStorage};
@@ -13,9 +14,13 @@ impl<'a> System<'a> for LayoutSystem {
         WriteStorage<'a, Position>,
         WriteStorage<'a, WidgetComponent>,
         ReadStorage<'a, WindowComponent>,
+        ReadStorage<'a, Interactive>,
     );
 
-    fn run(&mut self, (mut sizes, mut positions, mut widgets, windows): Self::SystemData) {
+    fn run(
+        &mut self,
+        (mut sizes, mut positions, mut widgets, windows, interactive): Self::SystemData,
+    ) {
         for window in windows.join() {
             if !window.dirty() {
                 continue;
@@ -29,8 +34,10 @@ impl<'a> System<'a> for LayoutSystem {
                 &mut sizes,
                 &mut positions,
                 &mut widgets,
+                &interactive,
                 constraint,
                 window.root,
+                window,
             );
             positions.insert(window.root.0, Position::zero()).ok();
         }
@@ -41,14 +48,32 @@ fn request_layout<'a>(
     sizes: &mut WriteStorage<'a, Size>,
     positions: &mut WriteStorage<'a, Position>,
     widgets: &mut WriteStorage<'a, WidgetComponent>,
+    interactive: &ReadStorage<'a, Interactive>,
     constraint: BoxConstraint,
     widget: WidgetId,
+    window: &WindowComponent,
 ) -> Size {
     let mut size_prev_child = None;
+    let interactive_state = match &window.hovered_tags {
+        Some(hovered_tags) => {
+            if let Some(int) = interactive.get(widget.0) {
+                if hovered_tags.contains(&int.tag) {
+                    InteractiveState::new(true, false)
+                } else {
+                    InteractiveState::new(false, false)
+                }
+            } else {
+                InteractiveState::new(false, false)
+            }
+        }
+        None => InteractiveState::new(false, false),
+    };
+
     loop {
         let result = widgets.get_mut(widget.0).unwrap().layout(
-            &mut LayoutContext::new(positions, sizes),
+            &mut LayoutContext::new(positions, sizes, &window.hovered_tags),
             constraint,
+            interactive_state,
             size_prev_child,
         );
         match result {
@@ -61,8 +86,10 @@ fn request_layout<'a>(
                     sizes,
                     positions,
                     widgets,
+                    interactive,
                     child_constraint,
                     child,
+                    window,
                 ));
             }
         }

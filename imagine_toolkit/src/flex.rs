@@ -1,4 +1,6 @@
-use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
+use imagine::{
+    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId,
+};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 enum FlexPhase {
@@ -139,6 +141,7 @@ impl Widget for Flex {
         &mut self,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
+        _interactive_state: InteractiveState,
         size: Option<Size>,
     ) -> LayoutResult {
         match size {

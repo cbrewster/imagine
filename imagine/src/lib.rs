@@ -22,8 +22,8 @@ pub struct Imagine<'a, 'b> {
     renderers: Vec<webrender::Renderer>,
 }
 
-impl<'a, 'b> Imagine<'a, 'b> {
-    pub fn new() -> Imagine<'a, 'b> {
+impl<'a, 'b> Default for Imagine<'a, 'b> {
+    fn default() -> Imagine<'a, 'b> {
         let mut world = World::new();
         world.register::<WidgetComponent>();
         world.register::<Position>();
@@ -44,7 +44,9 @@ impl<'a, 'b> Imagine<'a, 'b> {
             renderers: Vec::new(),
         }
     }
+}
 
+impl<'a, 'b> Imagine<'a, 'b> {
     pub fn create_window(&mut self, title: &str, root: Entity, size: Size) {
         let window_entity = self
             .world
@@ -259,13 +261,9 @@ impl RenderWindow {
         entity: Entity,
         size: Size,
     ) -> Result<RenderWindow, glutin::CreationError> {
-        let window_builder =
-            WindowBuilder::new()
-                .with_title(title)
-                .with_dimensions(glutin::dpi::LogicalSize::new(
-                    size.width as f64,
-                    size.height as f64,
-                ));
+        let window_builder = WindowBuilder::new()
+            .with_title(title)
+            .with_dimensions((f64::from(size.width), f64::from(size.height)).into());
         let context = glutin::ContextBuilder::new();
         let window = glutin::GlWindow::new(window_builder, context, events_loop)?;
 

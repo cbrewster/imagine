@@ -105,14 +105,14 @@ impl Component for Size {
 pub struct LayoutContext<'a, 'b> {
     positions: &'a mut WriteStorage<'b, Position>,
     sizes: &'a mut WriteStorage<'b, Size>,
-    hovered_tags: &'a Option<Vec<u64>>,
+    hovered_tags: &'a Vec<u64>,
 }
 
 impl<'a, 'b> LayoutContext<'a, 'b> {
     pub(crate) fn new(
         positions: &'a mut WriteStorage<'b, Position>,
         sizes: &'a mut WriteStorage<'b, Size>,
-        hovered_tags: &'a Option<Vec<u64>>,
+        hovered_tags: &'a Vec<u64>,
     ) -> LayoutContext<'a, 'b> {
         LayoutContext {
             positions,
@@ -130,10 +130,6 @@ impl<'a, 'b> LayoutContext<'a, 'b> {
     }
 
     pub fn is_hovered(&self, tag: u64) -> bool {
-        if let Some(hovered_tags) = &self.hovered_tags {
-            hovered_tags.contains(&tag)
-        } else {
-            false
-        }
+        self.hovered_tags.contains(&tag)
     }
 }

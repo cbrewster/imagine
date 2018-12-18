@@ -45,6 +45,14 @@ impl Widget for FillBox {
         info.tag = Some((identifier, 0));
 
         let (r, g, b, a) = if self.hovered {
+            render_context.builder.push_shadow(
+                &info,
+                Shadow {
+                    offset: LayoutVector2D::zero(),
+                    color: ColorF::new(0.0, 0.0, 0.0, 0.4),
+                    blur_radius: 10.0,
+                },
+            );
             (0.0, 0.0, 0.0, 1.0)
         } else {
             self.color
@@ -53,6 +61,10 @@ impl Widget for FillBox {
         render_context
             .builder
             .push_rect(&info, ColorF::new(r, g, b, a));
+
+        if self.hovered {
+            render_context.builder.pop_all_shadows();
+        }
 
         Some(identifier)
     }

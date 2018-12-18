@@ -54,19 +54,14 @@ fn request_layout<'a>(
     window: &WindowComponent,
 ) -> Size {
     let mut size_prev_child = None;
-    let interactive_state = match &window.hovered_tags {
-        Some(hovered_tags) => {
-            if let Some(int) = interactive.get(widget.0) {
-                if hovered_tags.contains(&int.tag) {
-                    InteractiveState::new(true, false)
-                } else {
-                    InteractiveState::new(false, false)
-                }
-            } else {
-                InteractiveState::new(false, false)
-            }
+    let interactive_state = if let Some(int) = interactive.get(widget.0) {
+        if window.hovered_tags.contains(&int.tag) {
+            InteractiveState::new(true, false)
+        } else {
+            InteractiveState::new(false, false)
         }
-        None => InteractiveState::new(false, false),
+    } else {
+        InteractiveState::new(false, false)
     };
 
     loop {

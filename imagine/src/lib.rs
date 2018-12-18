@@ -64,7 +64,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
                 dirty: true,
                 pipeline_id,
                 display_list_builder: None,
-                hovered_tags: None,
+                hovered_tags: Vec::new(),
             })
             .build();
         let render_window =
@@ -125,26 +125,11 @@ impl<'a, 'b> Imagine<'a, 'b> {
                                     .get_mut(window.entity)
                                     .expect("Could not find window component");
 
-                                window_component.hovered_tags = Some(hit);
+                                window_component.hovered_tags = hit;
                                 window_component.set_dirty(true);
                             }
                         }
-                        EventResponse::Continue => {
-                            if let Some(window) = windows.get(&window_id) {
-                                let mut window_components =
-                                    world.write_storage::<WindowComponent>();
-
-                                let window_component = window_components
-                                    .get_mut(window.entity)
-                                    .expect("Could not find window component");
-
-                                if window_component.hovered_tags.is_some() {
-                                    window_component.set_dirty(true);
-                                }
-
-                                window_component.hovered_tags = None;
-                            }
-                        }
+                        EventResponse::Continue => {}
                     }
                 }
             });
@@ -236,7 +221,7 @@ pub(crate) struct WindowComponent {
     dirty: bool,
     pipeline_id: PipelineId,
     pub(crate) display_list_builder: Option<DisplayListBuilder>,
-    pub(crate) hovered_tags: Option<Vec<u64>>,
+    pub(crate) hovered_tags: Vec<u64>,
 }
 
 impl WindowComponent {

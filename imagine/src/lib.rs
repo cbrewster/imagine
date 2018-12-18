@@ -92,47 +92,44 @@ impl<'a, 'b> Imagine<'a, 'b> {
             world,
             mut renderers,
         } = self;
-        while !windows.is_empty() {
-            events_loop.poll_events(|event| {
-                if let glutin::Event::WindowEvent { event, window_id } = event {
-                    let mut response = EventResponse::Continue;
-                    if let Some(window) = windows.get_mut(&window_id) {
-                        response = window.handle_event(event);
-                    }
-                    match response {
-                        EventResponse::Quit => {
-                            if let Some(window) = windows.remove(&window_id) {
-                                renderers.push(window.renderer);
-                            }
-                        }
-                        EventResponse::Dirty => {
-                            if let Some(window) = windows.get(&window_id) {
-                                let mut window_components =
-                                    world.write_storage::<WindowComponent>();
 
-                                let window_component = window_components
-                                    .get_mut(window.entity)
-                                    .expect("Could not find window component");
-                                window_component.set_dirty(true);
-                            }
-                        }
-                        EventResponse::Hit(hit) => {
-                            if let Some(window) = windows.get(&window_id) {
-                                let mut window_components =
-                                    world.write_storage::<WindowComponent>();
-
-                                let window_component = window_components
-                                    .get_mut(window.entity)
-                                    .expect("Could not find window component");
-
-                                window_component.hovered_tags = hit;
-                                window_component.set_dirty(true);
-                            }
-                        }
-                        EventResponse::Continue => {}
-                    }
+        events_loop.run_forever(|event| {
+            if let glutin::Event::WindowEvent { event, window_id } = event {
+                let mut response = EventResponse::Continue;
+                if let Some(window) = windows.get_mut(&window_id) {
+                    response = window.handle_event(event);
                 }
-            });
+                match response {
+                    EventResponse::Quit => {
+                        if let Some(window) = windows.remove(&window_id) {
+                            renderers.push(window.renderer);
+                        }
+                    }
+                    EventResponse::Dirty => {
+                        if let Some(window) = windows.get(&window_id) {
+                            let mut window_components = world.write_storage::<WindowComponent>();
+
+                            let window_component = window_components
+                                .get_mut(window.entity)
+                                .expect("Could not find window component");
+                            window_component.set_dirty(true);
+                        }
+                    }
+                    EventResponse::Hit(hit) => {
+                        if let Some(window) = windows.get(&window_id) {
+                            let mut window_components = world.write_storage::<WindowComponent>();
+
+                            let window_component = window_components
+                                .get_mut(window.entity)
+                                .expect("Could not find window component");
+
+                            window_component.hovered_tags = hit;
+                            window_component.set_dirty(true);
+                        }
+                    }
+                    EventResponse::Continue => {}
+                }
+            }
 
             for window in windows.values() {
                 let mut window_components = world.write_storage::<WindowComponent>();
@@ -207,7 +204,13 @@ impl<'a, 'b> Imagine<'a, 'b> {
                 window.renderer.render(framebuffer_size).unwrap();
                 window.window.swap_buffers().ok();
             }
-        }
+
+            if windows.is_empty() {
+                glutin::ControlFlow::Break
+            } else {
+                glutin::ControlFlow::Continue
+            }
+        });
 
         for renderer in renderers {
             renderer.deinit();
@@ -352,7 +355,8 @@ impl RenderWindow {
                     },
                 ..
             } => {
-                self.renderer.toggle_debug_flags(webrender::DebugFlags::PROFILER_DBG);
+                self.renderer
+                    .toggle_debug_flags(webrender::DebugFlags::PROFILER_DBG);
                 EventResponse::Continue
             }
             glutin::WindowEvent::CursorMoved { position, .. } => {

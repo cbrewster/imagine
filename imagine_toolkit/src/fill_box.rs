@@ -86,9 +86,9 @@ impl Widget for FillBox {
             render_context.builder.push_box_shadow(
                 &LayoutPrimitiveInfo::new(info.rect),
                 info.rect,
-                LayoutVector2D::zero(),
-                ColorF::new(0.0, 0.0, 0.0, 0.4),
-                10.0,
+                LayoutVector2D::new(0.0, 3.0),
+                ColorF::new(0.0, 0.0, 0.0, 0.2),
+                4.0,
                 0.0,
                 border_radius,
                 BoxShadowClipMode::Inset,

@@ -1,6 +1,6 @@
 use imagine::{
-    BoxConstraint, Geometry, InteractiveState, LayoutContext, LayoutResult, RenderContext, Size,
-    Widget, WidgetId,
+    BoxConstraint, Geometry, InteractiveState, LayoutContext, LayoutResult, Position,
+    RenderContext, Size, Widget, WidgetId,
 };
 use webrender::api::*;
 
@@ -8,14 +8,16 @@ pub struct FillBox {
     pub size: Size,
     pub color: (f32, f32, f32, f32),
     hovered: bool,
+    widget: Option<WidgetId>,
 }
 
 impl FillBox {
-    pub fn new(size: Size, color: (f32, f32, f32, f32)) -> FillBox {
+    pub fn new(size: Size, color: (f32, f32, f32, f32), widget: Option<WidgetId>) -> FillBox {
         FillBox {
             size,
             color,
             hovered: false,
+            widget,
         }
     }
 }
@@ -23,17 +25,31 @@ impl FillBox {
 impl Widget for FillBox {
     fn layout(
         &mut self,
-        _layout_context: &mut LayoutContext,
+        layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
         interactive_state: InteractiveState,
-        _size: Option<Size>,
+        size: Option<Size>,
     ) -> LayoutResult {
         self.hovered = interactive_state.hovered;
-        LayoutResult::Size(box_constraint.constrain(self.size))
+        if let Some(size) = size {
+            if let Some(widget) = self.widget {
+                layout_context.set_position(widget, Position::zero());
+            }
+            LayoutResult::Size(box_constraint.constrain(size))
+        } else {
+            if let Some(widget) = self.widget {
+                LayoutResult::RequestChildSize(widget, box_constraint)
+            } else {
+                LayoutResult::Size(box_constraint.constrain(self.size))
+            }
+        }
     }
 
     fn children(&self) -> Vec<WidgetId> {
-        vec![]
+        match self.widget {
+            Some(widget) => vec![widget],
+            None => vec![],
+        }
     }
 
     fn render(&self, geometry: Geometry, render_context: &mut RenderContext) -> Option<u64> {
@@ -44,26 +60,39 @@ impl Widget for FillBox {
         let identifier = render_context.next_tag_identifier();
         info.tag = Some((identifier, 0));
 
-        let (r, g, b, a) = if self.hovered {
-            render_context.builder.push_shadow(
-                &info,
-                Shadow {
-                    offset: LayoutVector2D::zero(),
-                    color: ColorF::new(0.0, 0.0, 0.0, 0.4),
-                    blur_radius: 10.0,
-                },
-            );
-            (0.0, 0.0, 0.0, 1.0)
-        } else {
-            self.color
-        };
+        let border_radius = BorderRadius::uniform(50.0);
+
+        let clip_id = render_context.builder.define_clip(
+            info.rect,
+            vec![ComplexClipRegion::new(
+                info.rect,
+                border_radius,
+                ClipMode::Clip,
+            )],
+            None,
+        );
+
+        let (r, g, b, a) = self.color;
+
+        render_context.builder.push_clip_id(clip_id);
 
         render_context
             .builder
             .push_rect(&info, ColorF::new(r, g, b, a));
 
+        render_context.builder.pop_clip_id();
+
         if self.hovered {
-            render_context.builder.pop_all_shadows();
+            render_context.builder.push_box_shadow(
+                &LayoutPrimitiveInfo::new(info.rect),
+                info.rect,
+                LayoutVector2D::zero(),
+                ColorF::new(0.0, 0.0, 0.0, 0.4),
+                10.0,
+                0.0,
+                border_radius,
+                BoxShadowClipMode::Inset,
+            );
         }
 
         Some(identifier)

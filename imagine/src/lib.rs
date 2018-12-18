@@ -285,6 +285,7 @@ impl RenderWindow {
         let opts = webrender::RendererOptions {
             device_pixel_ratio: hidpi_factor as f32,
             clear_color: Some(ColorF::new(0.98, 0.98, 0.98, 1.0)),
+            debug_flags: webrender::DebugFlags::PROFILER_DBG,
             ..webrender::RendererOptions::default()
         };
 
@@ -323,9 +324,36 @@ impl RenderWindow {
                 ..
             } => EventResponse::Quit,
             glutin::WindowEvent::Resized(size) => {
-                let dpi_factor = self.window.get_hidpi_factor();
-                self.window.resize(size.to_physical(dpi_factor));
+                let hidpi_factor = self.window.get_hidpi_factor();
+                self.window.resize(size.to_physical(hidpi_factor));
+                let framebuffer_size = {
+                    let size = self
+                        .window
+                        .get_inner_size()
+                        .unwrap()
+                        .to_physical(hidpi_factor);
+                    DeviceIntSize::new(size.width as i32, size.height as i32)
+                };
+
+                self.api.set_window_parameters(
+                    self.document_id,
+                    framebuffer_size,
+                    DeviceIntRect::new(DeviceIntPoint::zero(), framebuffer_size),
+                    hidpi_factor as f32,
+                );
                 EventResponse::Dirty
+            }
+            glutin::WindowEvent::KeyboardInput {
+                input:
+                    glutin::KeyboardInput {
+                        state: glutin::ElementState::Pressed,
+                        virtual_keycode: Some(glutin::VirtualKeyCode::P),
+                        ..
+                    },
+                ..
+            } => {
+                self.renderer.toggle_debug_flags(webrender::DebugFlags::PROFILER_DBG);
+                EventResponse::Continue
             }
             glutin::WindowEvent::CursorMoved { position, .. } => {
                 let world_position = WorldPoint::new(position.x as f32, position.y as f32);
@@ -335,7 +363,12 @@ impl RenderWindow {
                     world_position,
                     HitTestFlags::all(),
                 );
-                let hit = results.items.iter().map(|item| item.tag.0).collect();
+                let hit = results
+                    .items
+                    .iter()
+                    .map(|item| item.tag.0)
+                    .take(1)
+                    .collect();
                 EventResponse::Hit(hit)
             }
             _ => EventResponse::Continue,

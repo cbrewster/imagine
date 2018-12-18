@@ -69,7 +69,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
             .insert(render_window.window.id(), render_window);
     }
 
-    pub fn add_widget<W: Widget + 'static>(&mut self, widget: W) -> WidgetId {
+    pub fn create_widget<W: Widget + 'static>(&mut self, widget: W) -> WidgetId {
         WidgetId(
             self.world
                 .create_entity()

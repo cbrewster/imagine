@@ -104,18 +104,18 @@ impl<'a, 'b> Imagine<'a, 'b> {
                 }
                 window.needs_layout = true;
 
-                let device_pixel_ratio = window.window.get_hidpi_factor() as f32;
+                let hidpi_factor = window.window.get_hidpi_factor();
                 let framebuffer_size = {
                     let size = window
                         .window
                         .get_inner_size()
                         .unwrap()
-                        .to_physical(device_pixel_ratio as f64);
+                        .to_physical(hidpi_factor);
                     DeviceIntSize::new(size.width as i32, size.height as i32)
                 };
 
                 let layout_size =
-                    framebuffer_size.to_f32() / euclid::TypedScale::new(device_pixel_ratio);
+                    framebuffer_size.to_f32() / euclid::TypedScale::new(hidpi_factor as f32);
                 let mut txn = Transaction::new();
                 let mut builder = DisplayListBuilder::new(window.pipeline_id, layout_size);
 
@@ -254,19 +254,16 @@ impl RenderWindow {
             glutin::Api::WebGl => unimplemented!(),
         };
 
-        let device_pixel_ratio = window.get_hidpi_factor() as f32;
+        let hidpi_factor = window.get_hidpi_factor();
 
         let opts = webrender::RendererOptions {
-            device_pixel_ratio,
+            device_pixel_ratio: hidpi_factor as f32,
             clear_color: Some(ColorF::new(0.98, 0.98, 0.98, 1.0)),
             ..webrender::RendererOptions::default()
         };
 
         let framebuffer_size = {
-            let size = window
-                .get_inner_size()
-                .unwrap()
-                .to_physical(device_pixel_ratio as f64);
+            let size = window.get_inner_size().unwrap().to_physical(hidpi_factor);
             DeviceIntSize::new(size.width as i32, size.height as i32)
         };
         let notifier = Box::new(Notifier::new(events_loop.create_proxy()));

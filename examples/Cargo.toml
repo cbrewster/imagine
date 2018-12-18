@@ -1,0 +1,15 @@
+[package]
+name = "imagine-examples"
+license = "MIT"
+version = "0.1.0"
+authors = ["Connor Brewster <connor.brewster@eagles.oc.edu>"]
+edition = "2018"
+
+[[bin]]
+name = "basic"
+path = "basic.rs"
+
+
+[dependencies]
+imagine = {path = "../imagine"}
+imagine_toolkit = {path = "../imagine_toolkit"}

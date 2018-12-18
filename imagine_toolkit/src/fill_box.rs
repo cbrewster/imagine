@@ -22,8 +22,8 @@ impl Widget for FillBox {
         LayoutResult::Size(box_constraint.constrain(self.size))
     }
 
-    fn children(&self) -> &[Entity] {
-        &[]
+    fn children(&self) -> Vec<Entity> {
+        vec![]
     }
 
     fn render(&self, geometry: Geometry, builder: &mut DisplayListBuilder) {

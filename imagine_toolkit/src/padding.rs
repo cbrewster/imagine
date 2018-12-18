@@ -5,7 +5,7 @@ pub struct Padding {
     bottom: f32,
     left: f32,
     right: f32,
-    children: [Entity; 1],
+    child: Entity,
 }
 
 impl Padding {
@@ -15,7 +15,7 @@ impl Padding {
             bottom,
             left,
             right,
-            children: [child],
+            child,
         }
     }
 }
@@ -27,7 +27,6 @@ impl Widget for Padding {
         box_constraint: BoxConstraint,
         size: Option<Size>,
     ) -> LayoutResult {
-        let [child] = self.children;
         match size {
             None => {
                 let child_constraint = BoxConstraint::new(
@@ -40,10 +39,10 @@ impl Widget for Padding {
                         box_constraint.max.height - (self.top + self.bottom),
                     ),
                 );
-                LayoutResult::RequestChildSize(child, child_constraint)
+                LayoutResult::RequestChildSize(self.child, child_constraint)
             }
             Some(size) => {
-                set_position.set_position(child, Position::new(self.top, self.left));
+                set_position.set_position(self.child, Position::new(self.top, self.left));
                 LayoutResult::Size(Size::new(
                     size.width + (self.right + self.left),
                     size.height + (self.top + self.bottom),
@@ -52,7 +51,7 @@ impl Widget for Padding {
         }
     }
 
-    fn children(&self) -> &[Entity] {
-        &self.children
+    fn children(&self) -> Vec<Entity> {
+        vec![self.child]
     }
 }

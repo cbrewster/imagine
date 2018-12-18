@@ -18,7 +18,7 @@ fn main() {
 
     let root = imagine.add_widget(Split::new(left, right, 0.5));
 
-    imagine.create_window("Test!", root);
+    imagine.create_window("Test!", root, Size::new(1024.0, 768.0));
 
     let left = imagine.add_widget(FillBox::new(
         Size::new(5000.0, 5000.0),
@@ -34,7 +34,7 @@ fn main() {
 
     let root = imagine.add_widget(Split::new(left, right, 0.5));
 
-    imagine.create_window("Test2", root);
+    imagine.create_window("Test2", root, Size::new(1024.0, 768.0));
 
     imagine.run();
 }

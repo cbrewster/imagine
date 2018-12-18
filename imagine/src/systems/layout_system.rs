@@ -17,6 +17,9 @@ impl<'a> System<'a> for LayoutSystem {
 
     fn run(&mut self, (mut sizes, mut positions, mut widgets, windows): Self::SystemData) {
         for window in windows.join() {
+            if !window.dirty() {
+                continue;
+            }
             let constraint = BoxConstraint::new(Size::zero(), window.layout_size());
             request_layout(
                 &mut sizes,

@@ -10,7 +10,7 @@ pub trait Widget: Send + Sync {
         size: Option<Size>,
     ) -> LayoutResult;
 
-    fn children(&self) -> &[Entity];
+    fn children(&self) -> Vec<Entity>;
 
     fn render(&self, _geomtery: Geometry, _builder: &mut DisplayListBuilder) {}
 }

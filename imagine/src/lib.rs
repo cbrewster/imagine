@@ -6,7 +6,7 @@ use self::{systems::LayoutSystem, widget::WidgetComponent};
 use gleam::gl;
 use glutin::GlContext;
 use glutin::{EventsLoop, WindowBuilder};
-use specs::{Builder, Component, DenseVecStorage, Dispatcher, DispatcherBuilder, Join, World};
+use specs::{Builder, Component, DenseVecStorage, Dispatcher, DispatcherBuilder, World};
 use std::collections::HashMap;
 use webrender::api::*;
 
@@ -45,18 +45,20 @@ impl<'a, 'b> Imagine<'a, 'b> {
         }
     }
 
-    pub fn create_window(&mut self, title: &str, root: Entity) {
-        let render_window = RenderWindow::new(title, &self.events_loop).unwrap();
-        let window_id = render_window.window.id();
-        self.windows.insert(window_id, render_window);
-        self.world
+    pub fn create_window(&mut self, title: &str, root: Entity, size: Size) {
+        let window_entity = self
+            .world
             .create_entity()
             .with(WindowComponent {
-                window_id,
                 root: root,
-                layout_size: Size::zero(),
+                layout_size: size,
+                dirty: true,
             })
             .build();
+        let render_window =
+            RenderWindow::new(title, &self.events_loop, window_entity, size).unwrap();
+        self.windows
+            .insert(render_window.window.id(), render_window);
     }
 
     pub fn add_widget<W: Widget + 'static>(&mut self, widget: W) -> Entity {
@@ -76,33 +78,62 @@ impl<'a, 'b> Imagine<'a, 'b> {
             world,
             mut renderers,
         } = self;
-
         while !windows.is_empty() {
-            dispatcher.dispatch(&world.res);
-
             events_loop.poll_events(|event| {
                 if let glutin::Event::WindowEvent { event, window_id } = event {
-                    let mut should_close = false;
+                    let mut response = EventResponse::Continue;
                     if let Some(window) = windows.get_mut(&window_id) {
-                        should_close = window.handle_event(event);
+                        response = window.handle_event(event);
                     }
-                    if should_close {
-                        if let Some(window) = windows.remove(&window_id) {
-                            renderers.push(window.renderer);
+                    match response {
+                        EventResponse::Quit => {
+                            if let Some(window) = windows.remove(&window_id) {
+                                renderers.push(window.renderer);
+                            }
                         }
+                        EventResponse::Dirty => {
+                            if let Some(window) = windows.get(&window_id) {
+                                let mut window_components =
+                                    world.write_storage::<WindowComponent>();
+
+                                let window_component = window_components
+                                    .get_mut(window.entity)
+                                    .expect("Could not find window component");
+                                window_component.set_dirty(true);
+                            }
+                        }
+                        EventResponse::Continue => {}
                     }
                 }
             });
 
+            for window in windows.values() {
+                let mut window_components = world.write_storage::<WindowComponent>();
+                let window_component = window_components
+                    .get_mut(window.entity)
+                    .expect("Could not find window component");
+
+                if !window_component.dirty() {
+                    continue;
+                }
+
+                let window_size = window.window.get_inner_size().unwrap();
+                window_component.layout_size =
+                    Size::new(window_size.width as f32, window_size.height as f32);
+            }
+
+            dispatcher.dispatch(&world.res);
+
+            let mut window_components = world.write_storage::<WindowComponent>();
+
             for window in windows.values_mut() {
+                let window_component = window_components
+                    .get_mut(window.entity)
+                    .expect("Could not find window component");
+
                 unsafe {
                     window.window.make_current().ok();
                 }
-
-                if !window.needs_layout {
-                    continue;
-                }
-                window.needs_layout = true;
 
                 let hidpi_factor = window.window.get_hidpi_factor();
                 let framebuffer_size = {
@@ -114,69 +145,66 @@ impl<'a, 'b> Imagine<'a, 'b> {
                     DeviceIntSize::new(size.width as i32, size.height as i32)
                 };
 
-                let layout_size =
-                    framebuffer_size.to_f32() / euclid::TypedScale::new(hidpi_factor as f32);
-                let mut txn = Transaction::new();
-                let mut builder = DisplayListBuilder::new(window.pipeline_id, layout_size);
+                if window_component.dirty() {
+                    window_component.set_dirty(false);
+                    let layout_size =
+                        framebuffer_size.to_f32() / euclid::TypedScale::new(hidpi_factor as f32);
 
-                let bounds = LayoutRect::new(LayoutPoint::zero(), builder.content_size());
-                let info = LayoutPrimitiveInfo::new(bounds);
-                builder.push_stacking_context(
-                    &info,
-                    None,
-                    TransformStyle::Flat,
-                    MixBlendMode::Normal,
-                    &[],
-                    RasterSpace::Screen,
-                );
+                    let mut txn = Transaction::new();
+                    let mut builder = DisplayListBuilder::new(window.pipeline_id, layout_size);
 
-                let mut window_components = world.write_storage::<WindowComponent>();
+                    let bounds = LayoutRect::new(LayoutPoint::zero(), builder.content_size());
 
-                let window_component = (&mut window_components)
-                    .join()
-                    .find(|component| component.window_id == window.window.id())
-                    .expect("Could not find window component");
+                    let info = LayoutPrimitiveInfo::new(bounds);
 
-                window_component.layout_size = Size::new(bounds.size.width, bounds.size.height);
+                    builder.push_stacking_context(
+                        &info,
+                        None,
+                        TransformStyle::Flat,
+                        MixBlendMode::Normal,
+                        &[],
+                        RasterSpace::Screen,
+                    );
 
-                fn render_entities(
-                    entities: &[Entity],
-                    world: &World,
-                    builder: &mut DisplayListBuilder,
-                    offset: Position,
-                ) {
-                    let positions = world.read_storage::<Position>();
-                    let sizes = world.read_storage::<Size>();
-                    let widget_components = world.read_storage::<WidgetComponent>();
+                    fn render_entities(
+                        entities: &[Entity],
+                        world: &World,
+                        builder: &mut DisplayListBuilder,
+                        offset: Position,
+                    ) {
+                        let positions = world.read_storage::<Position>();
+                        let sizes = world.read_storage::<Size>();
+                        let widget_components = world.read_storage::<WidgetComponent>();
 
-                    for entity in entities {
-                        let position = positions.get(*entity).unwrap();
-                        let size = sizes.get(*entity).unwrap();
+                        for entity in entities {
+                            let position = positions.get(*entity).unwrap();
+                            let size = sizes.get(*entity).unwrap();
 
-                        let new_position =
-                            Position::new(offset.x + position.x, offset.y + position.y);
+                            let new_position =
+                                Position::new(offset.x + position.x, offset.y + position.y);
 
-                        let box_size = Geometry::new(new_position, *size);
+                            let box_size = Geometry::new(new_position, *size);
 
-                        let widget = widget_components.get(*entity).unwrap();
-                        widget.render(box_size, builder);
-                        render_entities(&widget.children(), world, builder, new_position);
+                            let widget = widget_components.get(*entity).unwrap();
+                            widget.render(box_size, builder);
+                            render_entities(&widget.children(), world, builder, new_position);
+                        }
                     }
+
+                    render_entities(
+                        &[window_component.root],
+                        &world,
+                        &mut builder,
+                        Position::zero(),
+                    );
+
+                    builder.pop_stacking_context();
+
+                    txn.set_display_list(window.epoch, None, layout_size, builder.finalize(), true);
+                    txn.set_root_pipeline(window.pipeline_id);
+                    txn.generate_frame();
+                    window.api.send_transaction(window.document_id, txn);
                 }
-
-                render_entities(
-                    &[window_component.root],
-                    &world,
-                    &mut builder,
-                    Position::zero(),
-                );
-
-                builder.pop_stacking_context();
-
-                txn.set_display_list(window.epoch, None, layout_size, builder.finalize(), true);
-                txn.set_root_pipeline(window.pipeline_id);
-                txn.generate_frame();
-                window.api.send_transaction(window.document_id, txn);
 
                 window.renderer.update();
                 window.renderer.render(framebuffer_size).unwrap();
@@ -192,13 +220,21 @@ impl<'a, 'b> Imagine<'a, 'b> {
 
 pub struct WindowComponent {
     root: Entity,
-    window_id: glutin::WindowId,
     layout_size: Size,
+    dirty: bool,
 }
 
 impl WindowComponent {
     pub fn layout_size(&self) -> Size {
         self.layout_size
+    }
+
+    pub fn dirty(&self) -> bool {
+        self.dirty
+    }
+
+    pub fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty
     }
 }
 
@@ -213,30 +249,23 @@ pub struct RenderWindow {
     document_id: DocumentId,
     epoch: Epoch,
     api: RenderApi,
-    needs_layout: bool,
-}
-
-impl RenderWindow {
-    fn handle_event(&mut self, event: glutin::WindowEvent) -> bool {
-        match event {
-            glutin::WindowEvent::CloseRequested => true,
-            glutin::WindowEvent::Resized(size) => {
-                let dpi_factor = self.window.get_hidpi_factor();
-                self.window.resize(size.to_physical(dpi_factor));
-                self.needs_layout = true;
-                false
-            }
-            _ => false,
-        }
-    }
+    entity: Entity,
 }
 
 impl RenderWindow {
     pub fn new(
         title: &str,
         events_loop: &EventsLoop,
+        entity: Entity,
+        size: Size,
     ) -> Result<RenderWindow, glutin::CreationError> {
-        let window_builder = WindowBuilder::new().with_title(title);
+        let window_builder =
+            WindowBuilder::new()
+                .with_title(title)
+                .with_dimensions(glutin::dpi::LogicalSize::new(
+                    size.width as f64,
+                    size.height as f64,
+                ));
         let context = glutin::ContextBuilder::new();
         let window = glutin::GlWindow::new(window_builder, context, events_loop)?;
 
@@ -282,9 +311,27 @@ impl RenderWindow {
             pipeline_id,
             epoch,
             document_id,
-            needs_layout: true,
+            entity,
         })
     }
+
+    fn handle_event(&mut self, event: glutin::WindowEvent) -> EventResponse {
+        match event {
+            glutin::WindowEvent::CloseRequested => EventResponse::Quit,
+            glutin::WindowEvent::Resized(size) => {
+                let dpi_factor = self.window.get_hidpi_factor();
+                self.window.resize(size.to_physical(dpi_factor));
+                EventResponse::Dirty
+            }
+            _ => EventResponse::Continue,
+        }
+    }
+}
+
+enum EventResponse {
+    Continue,
+    Quit,
+    Dirty,
 }
 
 struct Notifier {
@@ -305,7 +352,6 @@ impl RenderNotifier for Notifier {
     }
 
     fn wake_up(&self) {
-        #[cfg(not(target_os = "android"))]
         let _ = self.events_proxy.wakeup();
     }
 

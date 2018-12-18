@@ -2,7 +2,8 @@ use imagine::Entity;
 use imagine::{BoxConstraint, LayoutResult, Position, SetPosition, Size, Widget};
 
 pub struct Split {
-    children: [Entity; 2],
+    left: Entity,
+    right: Entity,
     value: f32,
     finished_left: bool,
 }
@@ -10,7 +11,8 @@ pub struct Split {
 impl Split {
     pub fn new(left: Entity, right: Entity, value: f32) -> Split {
         Split {
-            children: [left, right],
+            left,
+            right,
             value: value.max(0.0).min(1.0),
             finished_left: false,
         }
@@ -24,7 +26,6 @@ impl Widget for Split {
         box_constraint: BoxConstraint,
         size: Option<Size>,
     ) -> LayoutResult {
-        let [left, right] = self.children;
         match size {
             None => {
                 self.finished_left = false;
@@ -35,13 +36,13 @@ impl Widget for Split {
                         box_constraint.max.height,
                     ),
                 );
-                LayoutResult::RequestChildSize(left, constraint)
+                LayoutResult::RequestChildSize(self.left, constraint)
             }
             Some(_) => {
                 if self.finished_left {
-                    set_position.set_position(left, Position::zero());
+                    set_position.set_position(self.left, Position::zero());
                     set_position.set_position(
-                        right,
+                        self.right,
                         Position::new(box_constraint.max.width * self.value, 0.0),
                     );
 
@@ -58,13 +59,13 @@ impl Widget for Split {
                             box_constraint.max.height,
                         ),
                     );
-                    LayoutResult::RequestChildSize(right, constraint)
+                    LayoutResult::RequestChildSize(self.right, constraint)
                 }
             }
         }
     }
 
-    fn children(&self) -> &[Entity] {
-        &self.children
+    fn children(&self) -> Vec<Entity> {
+        vec![self.left, self.right]
     }
 }

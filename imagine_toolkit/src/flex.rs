@@ -13,29 +13,29 @@ pub enum FlexDirection {
 }
 
 impl FlexDirection {
-    pub fn major_axis(&self, size: Size) -> f32 {
-        match *self {
+    pub fn major_axis(self, size: Size) -> f32 {
+        match self {
             FlexDirection::Horizontal => size.width,
             FlexDirection::Vertical => size.height,
         }
     }
 
-    pub fn minor_axis(&self, size: Size) -> f32 {
-        match *self {
+    pub fn minor_axis(self, size: Size) -> f32 {
+        match self {
             FlexDirection::Horizontal => size.height,
             FlexDirection::Vertical => size.width,
         }
     }
 
-    pub fn major_minor_to_position(&self, major: f32, minor: f32) -> Position {
-        match *self {
+    pub fn major_minor_to_position(self, major: f32, minor: f32) -> Position {
+        match self {
             FlexDirection::Horizontal => Position::new(major, minor),
             FlexDirection::Vertical => Position::new(minor, major),
         }
     }
 
-    pub fn major_minor_to_size(&self, major: f32, minor: f32) -> Size {
-        match *self {
+    pub fn major_minor_to_size(self, major: f32, minor: f32) -> Size {
+        match self {
             FlexDirection::Horizontal => Size::new(major, minor),
             FlexDirection::Vertical => Size::new(minor, major),
         }

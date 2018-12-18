@@ -17,14 +17,15 @@ impl<'a> System<'a> for LayoutSystem {
 
     fn run(&mut self, (mut sizes, mut positions, mut widgets, windows): Self::SystemData) {
         for window in windows.join() {
-            let root = match window.root {
-                Some(root) => root,
-                None => continue,
-            };
-
             let constraint = BoxConstraint::new(Size::zero(), window.layout_size());
-            request_layout(&mut sizes, &mut positions, &mut widgets, constraint, root);
-            positions.insert(root, Position::zero()).ok();
+            request_layout(
+                &mut sizes,
+                &mut positions,
+                &mut widgets,
+                constraint,
+                window.root,
+            );
+            positions.insert(window.root, Position::zero()).ok();
         }
     }
 }

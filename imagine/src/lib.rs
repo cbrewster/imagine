@@ -53,7 +53,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
             .create_entity()
             .with(WindowComponent {
                 window_id,
-                root: Some(root),
+                root: root,
                 layout_size: Size::zero(),
             })
             .build();
@@ -139,7 +139,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
 
                 window_component.layout_size = Size::new(bounds.size.width, bounds.size.height);
 
-                fn render_nodes(
+                fn render_entities(
                     entities: &[Entity],
                     world: &World,
                     builder: &mut DisplayListBuilder,
@@ -160,12 +160,12 @@ impl<'a, 'b> Imagine<'a, 'b> {
 
                         let widget = widget_components.get(*entity).unwrap();
                         widget.render(box_size, builder);
-                        render_nodes(&widget.children(), world, builder, new_position);
+                        render_entities(&widget.children(), world, builder, new_position);
                     }
                 }
 
-                render_nodes(
-                    &[window_component.root.unwrap()],
+                render_entities(
+                    &[window_component.root],
                     &world,
                     &mut builder,
                     Position::zero(),
@@ -191,7 +191,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
 }
 
 pub struct WindowComponent {
-    root: Option<Entity>,
+    root: Entity,
     window_id: glutin::WindowId,
     layout_size: Size,
 }

@@ -317,7 +317,15 @@ impl RenderWindow {
 
     fn handle_event(&mut self, event: glutin::WindowEvent) -> EventResponse {
         match event {
-            glutin::WindowEvent::CloseRequested => EventResponse::Quit,
+            glutin::WindowEvent::CloseRequested
+            | glutin::WindowEvent::KeyboardInput {
+                input:
+                    glutin::KeyboardInput {
+                        virtual_keycode: Some(glutin::VirtualKeyCode::Escape),
+                        ..
+                    },
+                ..
+            } => EventResponse::Quit,
             glutin::WindowEvent::Resized(size) => {
                 let dpi_factor = self.window.get_hidpi_factor();
                 self.window.resize(size.to_physical(dpi_factor));

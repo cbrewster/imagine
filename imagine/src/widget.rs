@@ -1,16 +1,19 @@
-use crate::{BoxConstraint, Entity, Geometry, LayoutResult, SetPosition, Size};
-use specs::{Component, DenseVecStorage};
+use crate::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Size};
+use specs::{Component, DenseVecStorage, Entity};
 use webrender::api::DisplayListBuilder;
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct WidgetId(pub(crate) Entity);
 
 pub trait Widget: Send + Sync {
     fn layout(
         &mut self,
-        set_position: SetPosition,
+        layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
         size: Option<Size>,
     ) -> LayoutResult;
 
-    fn children(&self) -> Vec<Entity>;
+    fn children(&self) -> Vec<WidgetId>;
 
     fn render(&self, _geomtery: Geometry, _builder: &mut DisplayListBuilder) {}
 }

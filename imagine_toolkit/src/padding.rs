@@ -1,15 +1,15 @@
-use imagine::{BoxConstraint, Entity, LayoutResult, Position, SetPosition, Size, Widget};
+use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
 
 pub struct Padding {
     top: f32,
     bottom: f32,
     left: f32,
     right: f32,
-    child: Entity,
+    child: WidgetId,
 }
 
 impl Padding {
-    pub fn new(top: f32, bottom: f32, left: f32, right: f32, child: Entity) -> Padding {
+    pub fn new(top: f32, bottom: f32, left: f32, right: f32, child: WidgetId) -> Padding {
         Padding {
             top,
             bottom,
@@ -23,7 +23,7 @@ impl Padding {
 impl Widget for Padding {
     fn layout(
         &mut self,
-        mut set_position: SetPosition,
+        layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
         size: Option<Size>,
     ) -> LayoutResult {
@@ -42,7 +42,7 @@ impl Widget for Padding {
                 LayoutResult::RequestChildSize(self.child, child_constraint)
             }
             Some(size) => {
-                set_position.set_position(self.child, Position::new(self.top, self.left));
+                layout_context.set_position(self.child, Position::new(self.top, self.left));
                 LayoutResult::Size(Size::new(
                     size.width + (self.right + self.left),
                     size.height + (self.top + self.bottom),
@@ -51,7 +51,7 @@ impl Widget for Padding {
         }
     }
 
-    fn children(&self) -> Vec<Entity> {
+    fn children(&self) -> Vec<WidgetId> {
         vec![self.child]
     }
 }

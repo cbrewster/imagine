@@ -1,9 +1,9 @@
 use crate::{
-    layout::{BoxConstraint, LayoutResult, Position, SetPosition, Size},
+    layout::{BoxConstraint, LayoutContext, LayoutResult, Position, Size},
     widget::WidgetComponent,
-    WindowComponent,
+    WidgetId, WindowComponent,
 };
-use specs::{Entity, Join, ReadStorage, System, WriteStorage};
+use specs::{Join, ReadStorage, System, WriteStorage};
 
 pub(crate) struct LayoutSystem;
 
@@ -28,7 +28,7 @@ impl<'a> System<'a> for LayoutSystem {
                 constraint,
                 window.root,
             );
-            positions.insert(window.root, Position::zero()).ok();
+            positions.insert(window.root.0, Position::zero()).ok();
         }
     }
 }
@@ -38,18 +38,18 @@ fn request_layout<'a>(
     positions: &mut WriteStorage<'a, Position>,
     widgets: &mut WriteStorage<'a, WidgetComponent>,
     constraint: BoxConstraint,
-    node: Entity,
+    widget: WidgetId,
 ) -> Size {
     let mut size_prev_child = None;
     loop {
-        let result = widgets.get_mut(node).unwrap().layout(
-            SetPosition::new(positions),
+        let result = widgets.get_mut(widget.0).unwrap().layout(
+            &mut LayoutContext::new(positions, sizes),
             constraint,
             size_prev_child,
         );
         match result {
             LayoutResult::Size(size) => {
-                sizes.insert(node, size).ok();
+                sizes.insert(widget.0, size).ok();
                 return size;
             }
             LayoutResult::RequestChildSize(child, child_constraint) => {

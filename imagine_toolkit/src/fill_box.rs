@@ -1,4 +1,4 @@
-use imagine::{BoxConstraint, Entity, Geometry, LayoutResult, SetPosition, Size, Widget};
+use imagine::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Size, Widget, WidgetId};
 use webrender::api::*;
 
 pub struct FillBox {
@@ -15,14 +15,14 @@ impl FillBox {
 impl Widget for FillBox {
     fn layout(
         &mut self,
-        _set_position: SetPosition,
+        _layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
         _size: Option<Size>,
     ) -> LayoutResult {
         LayoutResult::Size(box_constraint.constrain(self.size))
     }
 
-    fn children(&self) -> Vec<Entity> {
+    fn children(&self) -> Vec<WidgetId> {
         vec![]
     }
 

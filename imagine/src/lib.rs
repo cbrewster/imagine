@@ -6,13 +6,12 @@ use self::{systems::LayoutSystem, widget::WidgetComponent};
 use gleam::gl;
 use glutin::GlContext;
 use glutin::{EventsLoop, WindowBuilder};
-use specs::{Builder, Component, DenseVecStorage, Dispatcher, DispatcherBuilder, World};
+use specs::{Builder, Component, DenseVecStorage, Dispatcher, DispatcherBuilder, Entity, World};
 use std::collections::HashMap;
 use webrender::api::*;
 
-pub use self::layout::{BoxConstraint, Geometry, LayoutResult, Position, SetPosition, Size};
-pub use self::widget::Widget;
-pub use specs::Entity;
+pub use self::layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size};
+pub use self::widget::{Widget, WidgetId};
 
 pub struct Imagine<'a, 'b> {
     world: World,
@@ -47,12 +46,12 @@ impl<'a, 'b> Default for Imagine<'a, 'b> {
 }
 
 impl<'a, 'b> Imagine<'a, 'b> {
-    pub fn create_window(&mut self, title: &str, root: Entity, size: Size) {
+    pub fn create_window(&mut self, title: &str, root: WidgetId, size: Size) {
         let window_entity = self
             .world
             .create_entity()
             .with(WindowComponent {
-                root: root,
+                root,
                 layout_size: size,
                 dirty: true,
             })
@@ -63,13 +62,15 @@ impl<'a, 'b> Imagine<'a, 'b> {
             .insert(render_window.window.id(), render_window);
     }
 
-    pub fn add_widget<W: Widget + 'static>(&mut self, widget: W) -> Entity {
-        self.world
-            .create_entity()
-            .with(WidgetComponent {
-                inner: Box::new(widget),
-            })
-            .build()
+    pub fn add_widget<W: Widget + 'static>(&mut self, widget: W) -> WidgetId {
+        WidgetId(
+            self.world
+                .create_entity()
+                .with(WidgetComponent {
+                    inner: Box::new(widget),
+                })
+                .build(),
+        )
     }
 
     pub fn run(self) {
@@ -119,9 +120,22 @@ impl<'a, 'b> Imagine<'a, 'b> {
                     continue;
                 }
 
-                let window_size = window.window.get_inner_size().unwrap();
+                let hidpi_factor = window.window.get_hidpi_factor();
+
+                let framebuffer_size = {
+                    let size = window
+                        .window
+                        .get_inner_size()
+                        .unwrap()
+                        .to_physical(hidpi_factor);
+                    DeviceIntSize::new(size.width as i32, size.height as i32)
+                };
+
+                let layout_size: LayoutSize =
+                    framebuffer_size.to_f32() / euclid::TypedScale::new(hidpi_factor as f32);
+
                 window_component.layout_size =
-                    Size::new(window_size.width as f32, window_size.height as f32);
+                    Size::new(layout_size.width as f32, layout_size.height as f32);
             }
 
             dispatcher.dispatch(&world.res);
@@ -169,7 +183,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
                     );
 
                     fn render_entities(
-                        entities: &[Entity],
+                        widgets: &[WidgetId],
                         world: &World,
                         builder: &mut DisplayListBuilder,
                         offset: Position,
@@ -178,16 +192,16 @@ impl<'a, 'b> Imagine<'a, 'b> {
                         let sizes = world.read_storage::<Size>();
                         let widget_components = world.read_storage::<WidgetComponent>();
 
-                        for entity in entities {
-                            let position = positions.get(*entity).unwrap();
-                            let size = sizes.get(*entity).unwrap();
+                        for widget_id in widgets {
+                            let position = positions.get(widget_id.0).unwrap();
+                            let size = sizes.get(widget_id.0).unwrap();
 
                             let new_position =
                                 Position::new(offset.x + position.x, offset.y + position.y);
 
                             let box_size = Geometry::new(new_position, *size);
 
-                            let widget = widget_components.get(*entity).unwrap();
+                            let widget = widget_components.get(widget_id.0).unwrap();
                             widget.render(box_size, builder);
                             render_entities(&widget.children(), world, builder, new_position);
                         }
@@ -221,7 +235,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
 }
 
 pub struct WindowComponent {
-    root: Entity,
+    root: WidgetId,
     layout_size: Size,
     dirty: bool,
 }

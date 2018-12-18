@@ -1,4 +1,5 @@
-use specs::{Component, DenseVecStorage, Entity, WriteStorage};
+use crate::WidgetId;
+use specs::{Component, DenseVecStorage, WriteStorage};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Geometry {
@@ -90,7 +91,7 @@ fn clamp(input: f32, min: f32, max: f32) -> f32 {
 
 pub enum LayoutResult {
     Size(Size),
-    RequestChildSize(Entity, BoxConstraint),
+    RequestChildSize(WidgetId, BoxConstraint),
 }
 
 impl Component for Position {
@@ -101,16 +102,24 @@ impl Component for Size {
     type Storage = DenseVecStorage<Self>;
 }
 
-pub struct SetPosition<'a, 'b> {
+pub struct LayoutContext<'a, 'b> {
     pub(crate) positions: &'a mut WriteStorage<'b, Position>,
+    pub(crate) sizes: &'a mut WriteStorage<'b, Size>,
 }
 
-impl<'a, 'b> SetPosition<'a, 'b> {
-    pub fn set_position(&mut self, entity: Entity, position: Position) {
-        self.positions.insert(entity, position).ok();
+impl<'a, 'b> LayoutContext<'a, 'b> {
+    pub fn set_position(&mut self, widget: WidgetId, position: Position) {
+        self.positions.insert(widget.0, position).ok();
     }
 
-    pub(crate) fn new(positions: &'a mut WriteStorage<'b, Position>) -> SetPosition<'a, 'b> {
-        SetPosition { positions }
+    pub fn get_size(&mut self, widget: WidgetId) -> Size {
+        *self.sizes.get(widget.0).unwrap()
+    }
+
+    pub(crate) fn new(
+        positions: &'a mut WriteStorage<'b, Position>,
+        sizes: &'a mut WriteStorage<'b, Size>,
+    ) -> LayoutContext<'a, 'b> {
+        LayoutContext { positions, sizes }
     }
 }

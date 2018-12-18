@@ -1,15 +1,14 @@
-use imagine::Entity;
-use imagine::{BoxConstraint, LayoutResult, Position, SetPosition, Size, Widget};
+use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
 
 pub struct Split {
-    left: Entity,
-    right: Entity,
+    left: WidgetId,
+    right: WidgetId,
     value: f32,
     finished_left: bool,
 }
 
 impl Split {
-    pub fn new(left: Entity, right: Entity, value: f32) -> Split {
+    pub fn new(left: WidgetId, right: WidgetId, value: f32) -> Split {
         Split {
             left,
             right,
@@ -22,7 +21,7 @@ impl Split {
 impl Widget for Split {
     fn layout(
         &mut self,
-        mut set_position: SetPosition,
+        layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
         size: Option<Size>,
     ) -> LayoutResult {
@@ -40,8 +39,8 @@ impl Widget for Split {
             }
             Some(_) => {
                 if self.finished_left {
-                    set_position.set_position(self.left, Position::zero());
-                    set_position.set_position(
+                    layout_context.set_position(self.left, Position::zero());
+                    layout_context.set_position(
                         self.right,
                         Position::new(box_constraint.max.width * self.value, 0.0),
                     );
@@ -65,7 +64,7 @@ impl Widget for Split {
         }
     }
 
-    fn children(&self) -> Vec<Entity> {
+    fn children(&self) -> Vec<WidgetId> {
         vec![self.left, self.right]
     }
 }

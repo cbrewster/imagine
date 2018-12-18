@@ -20,7 +20,11 @@ impl<'a> System<'a> for LayoutSystem {
             if !window.dirty() {
                 continue;
             }
-            let constraint = BoxConstraint::new(Size::zero(), window.layout_size());
+            let layout_size = window.layout_size();
+            let constraint = BoxConstraint::new(
+                Size::zero(),
+                Size::new(layout_size.width, layout_size.height),
+            );
             request_layout(
                 &mut sizes,
                 &mut positions,

@@ -6,7 +6,7 @@ fn main() {
 
     let root = flex_row(&mut imagine);
 
-    imagine.create_window("Test!", root, Size::new(1024.0, 768.0));
+    imagine.create_window("Basic Demo!", root, Size::new(1024.0, 768.0));
     imagine.run();
 }
 

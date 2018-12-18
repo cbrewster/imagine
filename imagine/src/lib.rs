@@ -2,7 +2,10 @@ pub mod layout;
 pub mod systems;
 pub mod widget;
 
-use self::{systems::LayoutSystem, widget::WidgetComponent};
+use self::{
+    systems::{LayoutSystem, RenderSystem},
+    widget::WidgetComponent,
+};
 use gleam::gl;
 use glutin::GlContext;
 use glutin::{EventsLoop, WindowBuilder};
@@ -29,6 +32,7 @@ impl<'a, 'b> Default for Imagine<'a, 'b> {
         world.register::<Size>();
         let mut dispatcher = DispatcherBuilder::new()
             .with(LayoutSystem, "layout", &[])
+            .with(RenderSystem, "render", &["layout"])
             .build();
 
         dispatcher.setup(&mut world.res);
@@ -52,8 +56,11 @@ impl<'a, 'b> Imagine<'a, 'b> {
             .create_entity()
             .with(WindowComponent {
                 root,
-                layout_size: size,
+                layout_size: LayoutSize::zero(),
                 dirty: true,
+                // TODO: Generate Unique PipelineIds per Window.
+                pipeline_id: PipelineId(0, 0),
+                display_list_builder: None,
             })
             .build();
         let render_window =
@@ -134,8 +141,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
                 let layout_size: LayoutSize =
                     framebuffer_size.to_f32() / euclid::TypedScale::new(hidpi_factor as f32);
 
-                window_component.layout_size =
-                    Size::new(layout_size.width as f32, layout_size.height as f32);
+                window_component.layout_size = layout_size;
             }
 
             dispatcher.dispatch(&world.res);
@@ -163,63 +169,21 @@ impl<'a, 'b> Imagine<'a, 'b> {
 
                 if window_component.dirty() {
                     window_component.set_dirty(false);
-                    let layout_size =
-                        framebuffer_size.to_f32() / euclid::TypedScale::new(hidpi_factor as f32);
 
-                    let mut txn = Transaction::new();
-                    let mut builder = DisplayListBuilder::new(window.pipeline_id, layout_size);
+                    if let Some(builder) = window_component.display_list_builder.take() {
+                        let mut txn = Transaction::new();
 
-                    let bounds = LayoutRect::new(LayoutPoint::zero(), builder.content_size());
-
-                    let info = LayoutPrimitiveInfo::new(bounds);
-
-                    builder.push_stacking_context(
-                        &info,
-                        None,
-                        TransformStyle::Flat,
-                        MixBlendMode::Normal,
-                        &[],
-                        RasterSpace::Screen,
-                    );
-
-                    fn render_entities(
-                        widgets: &[WidgetId],
-                        world: &World,
-                        builder: &mut DisplayListBuilder,
-                        offset: Position,
-                    ) {
-                        let positions = world.read_storage::<Position>();
-                        let sizes = world.read_storage::<Size>();
-                        let widget_components = world.read_storage::<WidgetComponent>();
-
-                        for widget_id in widgets {
-                            let position = positions.get(widget_id.0).unwrap();
-                            let size = sizes.get(widget_id.0).unwrap();
-
-                            let new_position =
-                                Position::new(offset.x + position.x, offset.y + position.y);
-
-                            let box_size = Geometry::new(new_position, *size);
-
-                            let widget = widget_components.get(widget_id.0).unwrap();
-                            widget.render(box_size, builder);
-                            render_entities(&widget.children(), world, builder, new_position);
-                        }
+                        txn.set_display_list(
+                            window.epoch,
+                            None,
+                            window_component.layout_size,
+                            builder.finalize(),
+                            true,
+                        );
+                        txn.set_root_pipeline(window_component.pipeline_id);
+                        txn.generate_frame();
+                        window.api.send_transaction(window.document_id, txn);
                     }
-
-                    render_entities(
-                        &[window_component.root],
-                        &world,
-                        &mut builder,
-                        Position::zero(),
-                    );
-
-                    builder.pop_stacking_context();
-
-                    txn.set_display_list(window.epoch, None, layout_size, builder.finalize(), true);
-                    txn.set_root_pipeline(window.pipeline_id);
-                    txn.generate_frame();
-                    window.api.send_transaction(window.document_id, txn);
                 }
 
                 window.renderer.update();
@@ -234,14 +198,16 @@ impl<'a, 'b> Imagine<'a, 'b> {
     }
 }
 
-pub struct WindowComponent {
+pub(crate) struct WindowComponent {
     root: WidgetId,
-    layout_size: Size,
+    layout_size: LayoutSize,
     dirty: bool,
+    pipeline_id: PipelineId,
+    pub(crate) display_list_builder: Option<DisplayListBuilder>,
 }
 
 impl WindowComponent {
-    pub fn layout_size(&self) -> Size {
+    pub fn layout_size(&self) -> LayoutSize {
         self.layout_size
     }
 
@@ -261,7 +227,6 @@ impl Component for WindowComponent {
 pub struct RenderWindow {
     window: glutin::GlWindow,
     renderer: webrender::Renderer,
-    pipeline_id: PipelineId,
     document_id: DocumentId,
     epoch: Epoch,
     api: RenderApi,
@@ -314,13 +279,11 @@ impl RenderWindow {
         let document_id = api.add_document(framebuffer_size, 0);
 
         let epoch = Epoch(0);
-        let pipeline_id = PipelineId(0, 0);
 
         Ok(RenderWindow {
             window,
             renderer,
             api,
-            pipeline_id,
             epoch,
             document_id,
             entity,

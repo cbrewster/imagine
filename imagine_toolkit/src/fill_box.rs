@@ -60,7 +60,7 @@ impl Widget for FillBox {
         let identifier = render_context.next_tag_identifier();
         info.tag = Some((identifier, 0));
 
-        let border_radius = BorderRadius::uniform(50.0);
+        let border_radius = BorderRadius::uniform(4.0);
 
         let clip_id = render_context.builder.define_clip(
             info.rect,

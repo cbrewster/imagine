@@ -36,12 +36,10 @@ impl Widget for FillBox {
                 layout_context.set_position(widget, Position::zero());
             }
             LayoutResult::Size(box_constraint.constrain(size))
+        } else if let Some(widget) = self.widget {
+            LayoutResult::RequestChildSize(widget, box_constraint)
         } else {
-            if let Some(widget) = self.widget {
-                LayoutResult::RequestChildSize(widget, box_constraint)
-            } else {
-                LayoutResult::Size(box_constraint.constrain(self.size))
-            }
+            LayoutResult::Size(box_constraint.constrain(self.size))
         }
     }
 

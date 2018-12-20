@@ -32,7 +32,7 @@ impl Widget for List {
             None => {
                 self.current_index = 0;
             }
-            Some(size) => {
+            Some(_) => {
                 self.current_index += 1;
 
                 if self.current_index >= self.widgets.len() {

@@ -1,5 +1,5 @@
 use imagine::{Imagine, Size, WidgetId};
-use imagine_toolkit::{FillBox, Flex, FlexAlign, FlexDirection, FlexItem, List, Padding};
+use imagine_toolkit::{FillBox, Flex, FlexAlign, FlexDirection, FlexItem, Padding};
 
 fn main() {
     let mut imagine = Imagine::default();

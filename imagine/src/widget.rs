@@ -1,5 +1,6 @@
-use crate::{BoxConstraint, Geometry, LayoutContext, LayoutResult, RenderContext, Size};
-use specs::{Component, DenseVecStorage, Entity};
+use crate::{
+    BoxConstraint, Geometry, LayoutContext, LayoutResult, RenderContext, RenderTreeBuilder, Size,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct InteractiveState {
@@ -13,8 +14,8 @@ impl InteractiveState {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct WidgetId(pub(crate) Entity);
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct WidgetId(pub(crate) usize);
 
 pub trait Widget: Send + Sync {
     fn layout(
@@ -25,31 +26,9 @@ pub trait Widget: Send + Sync {
         size: Option<Size>,
     ) -> LayoutResult;
 
-    fn children(&self) -> Vec<WidgetId>;
-
     fn render(&self, _geomtery: Geometry, _render_context: &mut RenderContext) -> Option<u64> {
         None
     }
-}
 
-pub(crate) struct WidgetComponent {
-    pub(crate) inner: Box<dyn Widget>,
-}
-
-impl std::ops::Deref for WidgetComponent {
-    type Target = Widget;
-
-    fn deref(&self) -> &(dyn Widget + 'static) {
-        self.inner.deref()
-    }
-}
-
-impl std::ops::DerefMut for WidgetComponent {
-    fn deref_mut(&mut self) -> &mut (dyn Widget + 'static) {
-        self.inner.deref_mut()
-    }
-}
-
-impl Component for WidgetComponent {
-    type Storage = DenseVecStorage<Self>;
+    fn create(self, builder: &mut RenderTreeBuilder) -> WidgetId;
 }

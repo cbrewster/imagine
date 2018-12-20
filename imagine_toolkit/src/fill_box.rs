@@ -1,6 +1,6 @@
 use imagine::{
     BoxConstraint, Geometry, InteractiveState, LayoutContext, LayoutResult, Position,
-    RenderContext, Size, Widget, WidgetId,
+    RenderContext, RenderTreeBuilder, Size, Widget, WidgetId,
 };
 use webrender::api::*;
 
@@ -23,6 +23,13 @@ impl FillBox {
 }
 
 impl Widget for FillBox {
+    fn create(self, builder: &mut RenderTreeBuilder) -> WidgetId {
+        match self.widget {
+            Some(child) => builder.create(self, &[child]),
+            None => builder.create(self, &[]),
+        }
+    }
+
     fn layout(
         &mut self,
         layout_context: &mut LayoutContext,
@@ -42,13 +49,6 @@ impl Widget for FillBox {
             } else {
                 LayoutResult::Size(box_constraint.constrain(self.size))
             }
-        }
-    }
-
-    fn children(&self) -> Vec<WidgetId> {
-        match self.widget {
-            Some(widget) => vec![widget],
-            None => vec![],
         }
     }
 

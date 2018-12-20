@@ -1,10 +1,12 @@
 use imagine::{
-    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId,
+    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, RenderTreeBuilder,
+    Size, Widget, WidgetId,
 };
 
 pub struct List {
     widgets: Vec<WidgetId>,
     current_index: usize,
+    remaining_height: f32,
 }
 
 impl List {
@@ -12,13 +14,15 @@ impl List {
         List {
             widgets,
             current_index: 0,
+            remaining_height: 0.0,
         }
     }
 }
 
 impl Widget for List {
-    fn children(&self) -> Vec<WidgetId> {
-        self.widgets.clone()
+    fn create(self, builder: &mut RenderTreeBuilder) -> WidgetId {
+        let children = self.widgets.clone();
+        builder.create(self, &children)
     }
 
     fn layout(
@@ -31,8 +35,11 @@ impl Widget for List {
         match size {
             None => {
                 self.current_index = 0;
+                self.remaining_height = box_constraint.max.height;
             }
             Some(size) => {
+                self.remaining_height -= size.height;
+
                 self.current_index += 1;
 
                 if self.current_index >= self.widgets.len() {
@@ -48,8 +55,11 @@ impl Widget for List {
                 }
             }
         }
-        let child_constraint =
-            BoxConstraint::new(Size::new(box_constraint.max.width, 0.0), box_constraint.max);
+
+        let child_constraint = BoxConstraint::new(
+            Size::new(box_constraint.max.width, 0.0),
+            Size::new(box_constraint.max.width, self.remaining_height.max(0.0)),
+        );
         LayoutResult::RequestChildSize(self.widgets[self.current_index], child_constraint)
     }
 }

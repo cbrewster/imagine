@@ -1,220 +1,260 @@
 pub mod layout;
 pub mod render;
-pub mod systems;
 pub mod widget;
 
-use self::{
-    systems::{LayoutSystem, RenderSystem},
-    widget::WidgetComponent,
-};
 use gleam::gl;
 use glutin::GlContext;
 use glutin::{EventsLoop, WindowBuilder};
-use specs::{Builder, Component, DenseVecStorage, Dispatcher, DispatcherBuilder, Entity, World};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use webrender::api::*;
 
 pub use self::layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size};
 pub use self::render::RenderContext;
 pub use self::widget::{InteractiveState, Widget, WidgetId};
 
-pub struct Imagine<'a, 'b> {
-    world: World,
-    dispatcher: Dispatcher<'a, 'b>,
-    events_loop: EventsLoop,
-    windows: HashMap<glutin::WindowId, RenderWindow>,
-    renderers: Vec<webrender::Renderer>,
+pub struct RenderTreeBuilder {
+    widgets: Vec<Box<dyn Widget + 'static>>,
+    children: Vec<Vec<WidgetId>>,
 }
 
-impl<'a, 'b> Default for Imagine<'a, 'b> {
-    fn default() -> Imagine<'a, 'b> {
-        let mut world = World::new();
-        world.register::<WidgetComponent>();
-        world.register::<Position>();
-        world.register::<Size>();
-        let mut dispatcher = DispatcherBuilder::new()
-            .with(LayoutSystem, "layout", &[])
-            .with(RenderSystem, "render", &["layout"])
-            .build();
+impl RenderTreeBuilder {
+    fn new() -> RenderTreeBuilder {
+        RenderTreeBuilder {
+            widgets: Vec::new(),
+            children: Vec::new(),
+        }
+    }
 
-        dispatcher.setup(&mut world.res);
+    pub fn create<T: Widget + 'static>(&mut self, widget: T, children: &[WidgetId]) -> WidgetId {
+        self.widgets.push(Box::new(widget));
+        let id = self.widgets.len() - 1;
+        self.children.push(children.into());
+        WidgetId(id)
+    }
 
-        let events_loop = EventsLoop::new();
-
-        Imagine {
-            world,
-            dispatcher,
-            events_loop,
-            windows: HashMap::new(),
-            renderers: Vec::new(),
+    fn root(self, root: WidgetId) -> RenderTree {
+        RenderTree {
+            widgets: self.widgets,
+            children: self.children,
+            root,
+            positions: HashMap::new(),
+            sizes: HashMap::new(),
         }
     }
 }
 
-impl<'a, 'b> Imagine<'a, 'b> {
-    pub fn create_window(&mut self, title: &str, root: WidgetId, size: Size) {
-        // TODO: Generate Unique PipelineIds per Window.
-        let pipeline_id = PipelineId(0, 0);
-        let window_entity = self
-            .world
-            .create_entity()
-            .with(WindowComponent {
-                root,
-                layout_size: LayoutSize::zero(),
-                dirty: true,
-                pipeline_id,
-                display_list_builder: None,
-                hovered_tags: Vec::new(),
-            })
-            .build();
-        let render_window =
-            RenderWindow::new(title, &self.events_loop, window_entity, size, pipeline_id).unwrap();
-        self.windows
-            .insert(render_window.window.id(), render_window);
-    }
+pub struct RenderTree {
+    widgets: Vec<Box<dyn Widget + 'static>>,
+    children: Vec<Vec<WidgetId>>,
+    positions: HashMap<WidgetId, Position>,
+    sizes: HashMap<WidgetId, Size>,
+    root: WidgetId,
+}
 
-    pub fn create_widget<W: Widget + 'static>(&mut self, widget: W) -> WidgetId {
-        WidgetId(
-            self.world
-                .create_entity()
-                .with(WidgetComponent {
-                    inner: Box::new(widget),
-                })
-                .build(),
-        )
+pub trait Ui {
+    fn render(&self, builder: &mut RenderTreeBuilder) -> WidgetId;
+}
+
+pub struct Imagine<T: Ui> {
+    events_loop: EventsLoop,
+    window: RenderWindow,
+    ui: T,
+}
+
+impl<T: Ui> Imagine<T> {
+    pub fn new(ui: T, title: &str) -> Imagine<T> {
+        let events_loop = EventsLoop::new();
+        let pipeline_id = PipelineId(0, 0);
+
+        let window =
+            RenderWindow::new(title, &events_loop, Size::new(800.0, 600.0), pipeline_id).unwrap();
+
+        Imagine {
+            events_loop,
+            window,
+            ui,
+        }
     }
 
     pub fn run(self) {
         let Imagine {
             mut events_loop,
-            mut dispatcher,
-            mut windows,
-            world,
-            mut renderers,
+            mut window,
+            mut ui,
         } = self;
 
-        events_loop.run_forever(|event| {
-            if let glutin::Event::WindowEvent { event, window_id } = event {
-                let mut response = EventResponse::Continue;
-                if let Some(window) = windows.get_mut(&window_id) {
-                    response = window.handle_event(event);
+        loop {
+            let mut hovered = Vec::new();
+            let mut exit = false;
+            events_loop.poll_events(|event| {
+                if let glutin::Event::WindowEvent { event, .. } = event {
+                    let response = window.handle_event(event);
+                    match response {
+                        EventResponse::Quit => exit = true,
+                        EventResponse::Dirty => {}
+                        EventResponse::Hit(hit) => hovered = hit,
+                        EventResponse::Continue => {}
+                    }
                 }
-                match response {
-                    EventResponse::Quit => {
-                        if let Some(window) = windows.remove(&window_id) {
-                            renderers.push(window.renderer);
+            });
+            if exit {
+                break;
+            }
+
+            let hidpi_factor = window.window.get_hidpi_factor();
+
+            let framebuffer_size = {
+                let size = window
+                    .window
+                    .get_inner_size()
+                    .unwrap()
+                    .to_physical(hidpi_factor);
+                DeviceIntSize::new(size.width as i32, size.height as i32)
+            };
+
+            let layout_size: LayoutSize =
+                framebuffer_size.to_f32() / euclid::TypedScale::new(hidpi_factor as f32);
+
+            unsafe {
+                window.window.make_current().ok();
+            }
+
+            let hidpi_factor = window.window.get_hidpi_factor();
+            let framebuffer_size = {
+                let size = window
+                    .window
+                    .get_inner_size()
+                    .unwrap()
+                    .to_physical(hidpi_factor);
+                DeviceIntSize::new(size.width as i32, size.height as i32)
+            };
+
+            let start = Instant::now();
+
+            let mut tree_builder = RenderTreeBuilder::new();
+            let root = ui.render(&mut tree_builder);
+            let mut tree = tree_builder.root(root);
+
+            let mut layout_context =
+                LayoutContext::new(&mut tree.positions, &mut tree.sizes, &hovered);
+
+            fn request_layout(
+                layout_context: &mut LayoutContext,
+                widgets: &mut Vec<Box<dyn Widget + 'static>>,
+                constraint: BoxConstraint,
+                widget: WidgetId,
+            ) -> Size {
+                let mut size_prev_child = None;
+                let interactive_state = InteractiveState::new(false, false);
+
+                loop {
+                    let result = widgets[widget.0].layout(
+                        layout_context,
+                        constraint,
+                        interactive_state,
+                        size_prev_child,
+                    );
+                    match result {
+                        LayoutResult::Size(size) => {
+                            layout_context.set_size(widget, size);
+                            return size;
+                        }
+                        LayoutResult::RequestChildSize(child, child_constraint) => {
+                            size_prev_child = Some(request_layout(
+                                layout_context,
+                                widgets,
+                                child_constraint,
+                                child,
+                            ));
                         }
                     }
-                    EventResponse::Dirty => {
-                        if let Some(window) = windows.get(&window_id) {
-                            let mut window_components = world.write_storage::<WindowComponent>();
-
-                            let window_component = window_components
-                                .get_mut(window.entity)
-                                .expect("Could not find window component");
-                            window_component.set_dirty(true);
-                        }
-                    }
-                    EventResponse::Hit(hit) => {
-                        if let Some(window) = windows.get(&window_id) {
-                            let mut window_components = world.write_storage::<WindowComponent>();
-
-                            let window_component = window_components
-                                .get_mut(window.entity)
-                                .expect("Could not find window component");
-
-                            window_component.hovered_tags = hit;
-                            window_component.set_dirty(true);
-                        }
-                    }
-                    EventResponse::Continue => {}
                 }
             }
 
-            for window in windows.values() {
-                let mut window_components = world.write_storage::<WindowComponent>();
-                let window_component = window_components
-                    .get_mut(window.entity)
-                    .expect("Could not find window component");
+            let constraint = BoxConstraint::new(
+                Size::zero(),
+                Size::new(layout_size.width, layout_size.height),
+            );
+            request_layout(
+                &mut layout_context,
+                &mut tree.widgets,
+                constraint,
+                tree.root,
+            );
+            layout_context.set_position(tree.root, Position::zero());
 
-                if !window_component.dirty() {
-                    continue;
+            let end = Instant::now();
+
+            // println!("Layout took {:?}", end.duration_since(start));
+
+            let start = Instant::now();
+
+            let mut txn = Transaction::new();
+
+            let mut builder = DisplayListBuilder::new(window.pipeline_id, layout_size);
+
+            let bounds = LayoutRect::new(LayoutPoint::zero(), builder.content_size());
+
+            let info = LayoutPrimitiveInfo::new(bounds);
+
+            builder.push_stacking_context(
+                &info,
+                None,
+                TransformStyle::Flat,
+                MixBlendMode::Normal,
+                &[],
+                RasterSpace::Screen,
+            );
+
+            let mut render_context = RenderContext::new(&mut builder);
+
+            fn render_entities(
+                children: &[WidgetId],
+                tree: &RenderTree,
+                render_context: &mut RenderContext,
+                offset: Position,
+            ) {
+                for widget_id in children {
+                    let (position, size, widget) = (
+                        tree.positions[widget_id],
+                        tree.sizes[widget_id],
+                        &tree.widgets[widget_id.0],
+                    );
+                    let new_position = Position::new(offset.x + position.x, offset.y + position.y);
+
+                    let box_size = Geometry::new(new_position, size);
+
+                    widget.render(box_size, render_context);
+
+                    render_entities(
+                        &tree.children[widget_id.0],
+                        tree,
+                        render_context,
+                        new_position,
+                    );
                 }
-
-                let hidpi_factor = window.window.get_hidpi_factor();
-
-                let framebuffer_size = {
-                    let size = window
-                        .window
-                        .get_inner_size()
-                        .unwrap()
-                        .to_physical(hidpi_factor);
-                    DeviceIntSize::new(size.width as i32, size.height as i32)
-                };
-
-                let layout_size: LayoutSize =
-                    framebuffer_size.to_f32() / euclid::TypedScale::new(hidpi_factor as f32);
-
-                window_component.layout_size = layout_size;
             }
 
-            dispatcher.dispatch(&world.res);
+            render_entities(&[tree.root], &tree, &mut render_context, Position::zero());
 
-            let mut window_components = world.write_storage::<WindowComponent>();
+            builder.pop_stacking_context();
 
-            for window in windows.values_mut() {
-                let window_component = window_components
-                    .get_mut(window.entity)
-                    .expect("Could not find window component");
+            txn.set_display_list(window.epoch, None, layout_size, builder.finalize(), true);
+            txn.set_root_pipeline(window.pipeline_id);
+            txn.generate_frame();
+            window.api.send_transaction(window.document_id, txn);
 
-                unsafe {
-                    window.window.make_current().ok();
-                }
+            window.renderer.update();
+            window.renderer.render(framebuffer_size).unwrap();
+            window.window.swap_buffers().ok();
 
-                let hidpi_factor = window.window.get_hidpi_factor();
-                let framebuffer_size = {
-                    let size = window
-                        .window
-                        .get_inner_size()
-                        .unwrap()
-                        .to_physical(hidpi_factor);
-                    DeviceIntSize::new(size.width as i32, size.height as i32)
-                };
+            let end = Instant::now();
 
-                if window_component.dirty() {
-                    window_component.set_dirty(false);
-
-                    if let Some(builder) = window_component.display_list_builder.take() {
-                        let mut txn = Transaction::new();
-
-                        txn.set_display_list(
-                            window.epoch,
-                            None,
-                            window_component.layout_size,
-                            builder.finalize(),
-                            true,
-                        );
-                        txn.set_root_pipeline(window_component.pipeline_id);
-                        txn.generate_frame();
-                        window.api.send_transaction(window.document_id, txn);
-                    }
-                }
-
-                window.renderer.update();
-                window.renderer.render(framebuffer_size).unwrap();
-                window.window.swap_buffers().ok();
-            }
-
-            if windows.is_empty() {
-                glutin::ControlFlow::Break
-            } else {
-                glutin::ControlFlow::Continue
-            }
-        });
-
-        for renderer in renderers {
-            renderer.deinit();
+            // println!("Render took {:?}", end.duration_since(start));
         }
+
+        window.renderer.deinit();
     }
 }
 
@@ -241,17 +281,12 @@ impl WindowComponent {
     }
 }
 
-impl Component for WindowComponent {
-    type Storage = DenseVecStorage<Self>;
-}
-
 pub struct RenderWindow {
     window: glutin::GlWindow,
     renderer: webrender::Renderer,
     document_id: DocumentId,
     epoch: Epoch,
     api: RenderApi,
-    entity: Entity,
     pipeline_id: PipelineId,
 }
 
@@ -259,7 +294,6 @@ impl RenderWindow {
     pub fn new(
         title: &str,
         events_loop: &EventsLoop,
-        entity: Entity,
         size: Size,
         pipeline_id: PipelineId,
     ) -> Result<RenderWindow, glutin::CreationError> {
@@ -310,7 +344,6 @@ impl RenderWindow {
             api,
             epoch,
             document_id,
-            entity,
             pipeline_id,
         })
     }

@@ -1,5 +1,5 @@
 use crate::WidgetId;
-use specs::{Component, DenseVecStorage, WriteStorage};
+use std::collections::HashMap;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Geometry {
@@ -94,26 +94,18 @@ pub enum LayoutResult {
     RequestChildSize(WidgetId, BoxConstraint),
 }
 
-impl Component for Position {
-    type Storage = DenseVecStorage<Self>;
-}
-
-impl Component for Size {
-    type Storage = DenseVecStorage<Self>;
-}
-
-pub struct LayoutContext<'a, 'b> {
-    positions: &'a mut WriteStorage<'b, Position>,
-    sizes: &'a mut WriteStorage<'b, Size>,
+pub struct LayoutContext<'a> {
+    positions: &'a mut HashMap<WidgetId, Position>,
+    sizes: &'a mut HashMap<WidgetId, Size>,
     hovered_tags: &'a Vec<u64>,
 }
 
-impl<'a, 'b> LayoutContext<'a, 'b> {
+impl<'a> LayoutContext<'a> {
     pub(crate) fn new(
-        positions: &'a mut WriteStorage<'b, Position>,
-        sizes: &'a mut WriteStorage<'b, Size>,
+        positions: &'a mut HashMap<WidgetId, Position>,
+        sizes: &'a mut HashMap<WidgetId, Size>,
         hovered_tags: &'a Vec<u64>,
-    ) -> LayoutContext<'a, 'b> {
+    ) -> LayoutContext<'a> {
         LayoutContext {
             positions,
             sizes,
@@ -121,12 +113,16 @@ impl<'a, 'b> LayoutContext<'a, 'b> {
         }
     }
 
+    pub(crate) fn set_size(&mut self, widget: WidgetId, size: Size) {
+        self.sizes.insert(widget, size);
+    }
+
     pub fn set_position(&mut self, widget: WidgetId, position: Position) {
-        self.positions.insert(widget.0, position).ok();
+        self.positions.insert(widget, position);
     }
 
     pub fn get_size(&mut self, widget: WidgetId) -> Size {
-        *self.sizes.get(widget.0).unwrap()
+        *self.sizes.get(&widget).unwrap()
     }
 
     pub fn is_hovered(&self, tag: u64) -> bool {

@@ -1,57 +1,33 @@
-use imagine::{Imagine, Size, WidgetId};
+use imagine::{Imagine, RenderTreeBuilder, Size, Ui, Widget, WidgetId};
 use imagine_toolkit::{FillBox, Flex, FlexAlign, FlexDirection, FlexItem, List, Padding};
 
-fn main() {
-    let mut imagine = Imagine::default();
-
-    let rows = (0..20).map(|_| flex_row(&mut imagine)).collect();
-    let root = imagine.create_widget(List::new(rows));
-
-    imagine.create_window("Basic Demo!", root, Size::new(1024.0, 768.0));
-    imagine.run();
+struct Basic {
+    count: usize,
 }
 
-fn flex_row(imagine: &mut Imagine) -> WidgetId {
-    let a = imagine.create_widget(FillBox::new(
-        Size::new(30.0, 30.0),
-        (1.0, 0.0, 0.0, 1.0),
-        None,
-    ));
-    let b = imagine.create_widget(FillBox::new(
-        Size::new(30.0, 30.0),
-        (0.0, 1.0, 0.0, 1.0),
-        None,
-    ));
-    let c = imagine.create_widget(FillBox::new(
-        Size::new(30.0, 30.0),
-        (0.0, 0.0, 1.0, 1.0),
-        None,
-    ));
+impl Ui for Basic {
+    fn render(&self, builder: &mut RenderTreeBuilder) -> WidgetId {
+        let children = (0..5)
+            .map(|i| row(self.count, 1.0 * (i as f32 / 5.0 as f32), builder))
+            .collect();
 
-    let fill1 = imagine.create_widget(FillBox::new(
-        Size::new(30.0, 30.0),
-        (0.0, 1.0, 1.0, 1.0),
-        None,
-    ));
-    let fill2 = imagine.create_widget(FillBox::new(
-        Size::new(30.0, 30.0),
-        (1.0, 0.0, 1.0, 1.0),
-        None,
-    ));
+        List::new(children).create(builder)
+    }
+}
 
-    let a_padded = imagine.create_widget(Padding::new(5.0, 5.0, 5.0, 5.0, a));
-    let b_padded = imagine.create_widget(Padding::new(5.0, 5.0, 5.0, 5.0, b));
-    let c_padded = imagine.create_widget(Padding::new(5.0, 5.0, 5.0, 5.0, c));
+fn row(count: usize, blue: f32, builder: &mut RenderTreeBuilder) -> WidgetId {
+    let children = (0..count)
+        .map(|i| {
+            let red = 1.0 * (i as f32 / count as f32);
+            let item =
+                FillBox::new(Size::new(100.0, 100.0), (red, 0.0, blue, 1.0), None).create(builder);
+            FlexItem::Flex(item, 1)
+        })
+        .collect();
 
-    imagine.create_widget(Flex::new(
-        vec![
-            FlexItem::NonFlex(a_padded),
-            FlexItem::Flex(fill1, 1),
-            FlexItem::NonFlex(b_padded),
-            FlexItem::Flex(fill2, 2),
-            FlexItem::NonFlex(c_padded),
-        ],
-        FlexDirection::Horizontal,
-        FlexAlign::Middle,
-    ))
+    Flex::new(children, FlexDirection::Horizontal, FlexAlign::Middle).create(builder)
+}
+
+fn main() {
+    Imagine::new(Basic { count: 10 }, "Basic").run()
 }

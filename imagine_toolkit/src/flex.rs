@@ -1,5 +1,6 @@
 use imagine::{
-    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId,
+    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, RenderTreeBuilder,
+    Size, Widget, WidgetId,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -137,6 +138,19 @@ impl Flex {
 }
 
 impl Widget for Flex {
+    fn create(self, builder: &mut RenderTreeBuilder) -> WidgetId {
+        let children = self
+            .children
+            .iter()
+            .map(|item| match item {
+                FlexItem::Flex(widget_id, _) => *widget_id,
+                FlexItem::NonFlex(widget_id) => *widget_id,
+            })
+            .collect::<Vec<_>>();
+
+        builder.create(self, &children)
+    }
+
     fn layout(
         &mut self,
         layout_context: &mut LayoutContext,
@@ -152,16 +166,17 @@ impl Widget for Flex {
                 self.phase = FlexPhase::NonFlex;
                 self.non_flex_major = 0.0;
                 self.minor = 0.0;
-                if let Some(index) = self.get_next(0) {
-                    self.total_flex = self
-                        .children
-                        .iter()
-                        .map(|child| match child {
-                            FlexItem::NonFlex(..) => 0,
-                            FlexItem::Flex(_, flex) => *flex,
-                        })
-                        .sum();
 
+                self.total_flex = self
+                    .children
+                    .iter()
+                    .map(|child| match child {
+                        FlexItem::NonFlex(..) => 0,
+                        FlexItem::Flex(_, flex) => *flex,
+                    })
+                    .sum();
+
+                if let Some(index) = self.get_next(0) {
                     self.index = index;
                 } else {
                     self.phase = FlexPhase::Flex;
@@ -211,15 +226,5 @@ impl Widget for Flex {
         };
 
         LayoutResult::RequestChildSize(child, child_constraint)
-    }
-
-    fn children(&self) -> Vec<WidgetId> {
-        self.children
-            .iter()
-            .map(|item| match item {
-                FlexItem::NonFlex(child) => *child,
-                FlexItem::Flex(child, _) => *child,
-            })
-            .collect()
     }
 }

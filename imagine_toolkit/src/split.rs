@@ -1,5 +1,6 @@
 use imagine::{
-    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId,
+    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, RenderTreeBuilder,
+    Size, Widget, WidgetId,
 };
 
 pub struct Split {
@@ -21,6 +22,11 @@ impl Split {
 }
 
 impl Widget for Split {
+    fn create(self, builder: &mut RenderTreeBuilder) -> WidgetId {
+        let children = &[self.left, self.right];
+        builder.create(self, children)
+    }
+
     fn layout(
         &mut self,
         layout_context: &mut LayoutContext,
@@ -65,9 +71,5 @@ impl Widget for Split {
                 }
             }
         }
-    }
-
-    fn children(&self) -> Vec<WidgetId> {
-        vec![self.left, self.right]
     }
 }

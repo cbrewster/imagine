@@ -1,5 +1,6 @@
 use imagine::{
-    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId,
+    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, RenderTreeBuilder,
+    Size, Widget, WidgetId,
 };
 
 pub struct Padding {
@@ -23,6 +24,11 @@ impl Padding {
 }
 
 impl Widget for Padding {
+    fn create(self, builder: &mut RenderTreeBuilder) -> WidgetId {
+        let children = &[self.child];
+        builder.create(self, children)
+    }
+
     fn layout(
         &mut self,
         layout_context: &mut LayoutContext,
@@ -52,9 +58,5 @@ impl Widget for Padding {
                 ))
             }
         }
-    }
-
-    fn children(&self) -> Vec<WidgetId> {
-        vec![self.child]
     }
 }

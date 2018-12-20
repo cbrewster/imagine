@@ -1,4 +1,3 @@
-use specs::{Component, DenseVecStorage};
 use webrender::api::DisplayListBuilder;
 
 pub struct RenderContext<'a> {
@@ -29,8 +28,4 @@ impl Interactive {
     pub(crate) fn new(tag: u64) -> Interactive {
         Interactive { tag }
     }
-}
-
-impl Component for Interactive {
-    type Storage = DenseVecStorage<Self>;
 }

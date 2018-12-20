@@ -152,16 +152,16 @@ impl Widget for Flex {
                 self.phase = FlexPhase::NonFlex;
                 self.non_flex_major = 0.0;
                 self.minor = 0.0;
-                if let Some(index) = self.get_next(0) {
-                    self.total_flex = self
-                        .children
-                        .iter()
-                        .map(|child| match child {
-                            FlexItem::NonFlex(..) => 0,
-                            FlexItem::Flex(_, flex) => *flex,
-                        })
-                        .sum();
+                self.total_flex = self
+                    .children
+                    .iter()
+                    .map(|child| match child {
+                        FlexItem::NonFlex(..) => 0,
+                        FlexItem::Flex(_, flex) => *flex,
+                    })
+                    .sum();
 
+                if let Some(index) = self.get_next(0) {
                     self.index = index;
                 } else {
                     self.phase = FlexPhase::Flex;

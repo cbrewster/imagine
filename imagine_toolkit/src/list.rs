@@ -1,6 +1,4 @@
-use imagine::{
-    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId,
-};
+use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
 
 pub struct List {
     widgets: Vec<WidgetId>,
@@ -25,7 +23,6 @@ impl Widget for List {
         &mut self,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        _interactive_state: InteractiveState,
         size: Option<Size>,
     ) -> LayoutResult {
         match size {

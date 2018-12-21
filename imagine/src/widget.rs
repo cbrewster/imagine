@@ -1,16 +1,12 @@
 use crate::{BoxConstraint, Geometry, LayoutContext, LayoutResult, RenderContext, Size};
 use specs::{Component, DenseVecStorage, Entity};
+use std::any::Any;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct InteractiveState {
-    pub hovered: bool,
-    pub clicked: bool,
-}
-
-impl InteractiveState {
-    pub fn new(hovered: bool, clicked: bool) -> InteractiveState {
-        InteractiveState { hovered, clicked }
-    }
+pub enum Interaction {
+    Hovered(bool),
+    MouseDown,
+    MouseUp,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -21,7 +17,6 @@ pub trait Widget: Send + Sync {
         &mut self,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        interactive_state: InteractiveState,
         size: Option<Size>,
     ) -> LayoutResult;
 
@@ -30,6 +25,10 @@ pub trait Widget: Send + Sync {
     fn render(&self, _geomtery: Geometry, _render_context: &mut RenderContext) -> Option<u64> {
         None
     }
+
+    fn handle_interaction(&mut self, _interaction: Interaction) {}
+
+    fn update(&mut self, _event: Box<dyn Any>) {}
 }
 
 pub(crate) struct WidgetComponent {

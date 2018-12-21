@@ -1,7 +1,7 @@
 use crate::{
     layout::{BoxConstraint, LayoutContext, LayoutResult, Position, Size},
     render::Interactive,
-    widget::{InteractiveState, WidgetComponent},
+    widget::WidgetComponent,
     WidgetId, WindowComponent,
 };
 use specs::{Join, ReadStorage, System, WriteStorage};
@@ -54,21 +54,10 @@ fn request_layout<'a>(
     window: &WindowComponent,
 ) -> Size {
     let mut size_prev_child = None;
-    let interactive_state = if let Some(int) = interactive.get(widget.0) {
-        if window.hovered_tags.contains(&int.tag) {
-            InteractiveState::new(true, false)
-        } else {
-            InteractiveState::new(false, false)
-        }
-    } else {
-        InteractiveState::new(false, false)
-    };
-
     loop {
         let result = widgets.get_mut(widget.0).unwrap().layout(
-            &mut LayoutContext::new(positions, sizes, &window.hovered_tags),
+            &mut LayoutContext::new(positions, sizes),
             constraint,
-            interactive_state,
             size_prev_child,
         );
         match result {

@@ -1,6 +1,4 @@
-use imagine::{
-    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId,
-};
+use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
 
 pub struct Padding {
     top: f32,
@@ -27,7 +25,6 @@ impl Widget for Padding {
         &mut self,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        _interactive_state: InteractiveState,
         size: Option<Size>,
     ) -> LayoutResult {
         match size {

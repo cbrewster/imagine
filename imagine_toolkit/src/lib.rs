@@ -6,7 +6,7 @@ pub mod split;
 
 pub use self::{
     fill_box::FillBox,
-    flex::{Flex, FlexAlign, FlexDirection, FlexItem},
+    flex::{Flex, FlexAlign, FlexDirection, FlexItem, FlexEvent},
     list::List,
     padding::Padding,
     split::Split,

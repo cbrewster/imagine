@@ -1,6 +1,6 @@
 use imagine::{
-    BoxConstraint, Geometry, InteractiveState, LayoutContext, LayoutResult, Position,
-    RenderContext, Size, Widget, WidgetId,
+    BoxConstraint, Geometry, Interaction, LayoutContext, LayoutResult, RenderContext, Size, Widget,
+    WidgetId,
 };
 use webrender::api::*;
 
@@ -8,16 +8,16 @@ pub struct FillBox {
     pub size: Size,
     pub color: (f32, f32, f32, f32),
     hovered: bool,
-    widget: Option<WidgetId>,
+    down: bool,
 }
 
 impl FillBox {
-    pub fn new(size: Size, color: (f32, f32, f32, f32), widget: Option<WidgetId>) -> FillBox {
+    pub fn new(size: Size, color: (f32, f32, f32, f32)) -> FillBox {
         FillBox {
             size,
             color,
+            down: false,
             hovered: false,
-            widget,
         }
     }
 }
@@ -25,29 +25,23 @@ impl FillBox {
 impl Widget for FillBox {
     fn layout(
         &mut self,
-        layout_context: &mut LayoutContext,
+        _layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        interactive_state: InteractiveState,
-        size: Option<Size>,
+        _size: Option<Size>,
     ) -> LayoutResult {
-        self.hovered = interactive_state.hovered;
-        if let Some(size) = size {
-            if let Some(widget) = self.widget {
-                layout_context.set_position(widget, Position::zero());
-            }
-            LayoutResult::Size(box_constraint.constrain(size))
-        } else if let Some(widget) = self.widget {
-            LayoutResult::RequestChildSize(widget, box_constraint)
-        } else {
-            LayoutResult::Size(box_constraint.constrain(self.size))
+        LayoutResult::Size(box_constraint.constrain(self.size))
+    }
+
+    fn handle_interaction(&mut self, interaction: Interaction) {
+        match interaction {
+            Interaction::Hovered(hovered) => self.hovered = hovered,
+            Interaction::MouseDown => self.down = true,
+            Interaction::MouseUp => self.down = false,
         }
     }
 
     fn children(&self) -> Vec<WidgetId> {
-        match self.widget {
-            Some(widget) => vec![widget],
-            None => vec![],
-        }
+        vec![]
     }
 
     fn render(&self, geometry: Geometry, render_context: &mut RenderContext) -> Option<u64> {
@@ -70,7 +64,11 @@ impl Widget for FillBox {
             None,
         );
 
-        let (r, g, b, a) = self.color;
+        let (r, g, b, mut a) = self.color;
+
+        if self.down {
+            a = 0.5;
+        }
 
         render_context.builder.push_clip_id(clip_id);
 

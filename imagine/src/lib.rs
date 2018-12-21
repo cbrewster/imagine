@@ -4,19 +4,22 @@ pub mod systems;
 pub mod widget;
 
 use self::{
-    systems::{LayoutSystem, RenderSystem},
+    render::{Event, Interactive},
+    systems::{InteractionSystem, LayoutSystem, RenderSystem},
     widget::WidgetComponent,
 };
 use gleam::gl;
 use glutin::GlContext;
 use glutin::{EventsLoop, WindowBuilder};
-use specs::{Builder, Component, DenseVecStorage, Dispatcher, DispatcherBuilder, Entity, World};
+use specs::{
+    Builder, Component, DenseVecStorage, Dispatcher, DispatcherBuilder, Entity, Join, World,
+};
 use std::collections::HashMap;
 use webrender::api::*;
 
 pub use self::layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size};
-pub use self::render::RenderContext;
-pub use self::widget::{InteractiveState, Widget, WidgetId};
+pub use self::render::{ClickListener, InteractionContext, RenderContext};
+pub use self::widget::{Interaction, Widget, WidgetId};
 
 pub struct Imagine<'a, 'b> {
     world: World,
@@ -32,9 +35,12 @@ impl<'a, 'b> Default for Imagine<'a, 'b> {
         world.register::<WidgetComponent>();
         world.register::<Position>();
         world.register::<Size>();
+        world.register::<Interactive>();
+
         let mut dispatcher = DispatcherBuilder::new()
-            .with(LayoutSystem, "layout", &[])
-            .with(RenderSystem, "render", &["layout"])
+            .with(InteractionSystem, "interaction", &[])
+            .with(LayoutSystem, "layout", &["interaction"])
+            .with(RenderSystem, "render", &["interaction", "layout"])
             .build();
 
         dispatcher.setup(&mut world.res);
@@ -64,7 +70,8 @@ impl<'a, 'b> Imagine<'a, 'b> {
                 dirty: true,
                 pipeline_id,
                 display_list_builder: None,
-                hovered_tags: Vec::new(),
+                hovered: None,
+                clicked: None,
             })
             .build();
         let render_window =
@@ -84,6 +91,11 @@ impl<'a, 'b> Imagine<'a, 'b> {
         )
     }
 
+    pub fn add_click_listener(&mut self, widget_id: WidgetId, listener: ClickListener) {
+        let mut listeners = self.world.write_storage::<ClickListener>();
+        listeners.insert(widget_id.0, listener).ok();
+    }
+
     pub fn run(self) {
         let Imagine {
             mut events_loop,
@@ -97,7 +109,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
             if let glutin::Event::WindowEvent { event, window_id } = event {
                 let mut response = EventResponse::Continue;
                 if let Some(window) = windows.get_mut(&window_id) {
-                    response = window.handle_event(event);
+                    response = window.handle_event(event, &world);
                 }
                 match response {
                     EventResponse::Quit => {
@@ -112,18 +124,6 @@ impl<'a, 'b> Imagine<'a, 'b> {
                             let window_component = window_components
                                 .get_mut(window.entity)
                                 .expect("Could not find window component");
-                            window_component.set_dirty(true);
-                        }
-                    }
-                    EventResponse::Hit(hit) => {
-                        if let Some(window) = windows.get(&window_id) {
-                            let mut window_components = world.write_storage::<WindowComponent>();
-
-                            let window_component = window_components
-                                .get_mut(window.entity)
-                                .expect("Could not find window component");
-
-                            window_component.hovered_tags = hit;
                             window_component.set_dirty(true);
                         }
                     }
@@ -223,8 +223,9 @@ pub(crate) struct WindowComponent {
     layout_size: LayoutSize,
     dirty: bool,
     pipeline_id: PipelineId,
+    hovered: Option<Entity>,
+    clicked: Option<Entity>,
     pub(crate) display_list_builder: Option<DisplayListBuilder>,
-    pub(crate) hovered_tags: Vec<u64>,
 }
 
 impl WindowComponent {
@@ -315,7 +316,10 @@ impl RenderWindow {
         })
     }
 
-    fn handle_event(&mut self, event: glutin::WindowEvent) -> EventResponse {
+    fn handle_event(&mut self, event: glutin::WindowEvent, world: &World) -> EventResponse {
+        let mut window_components = world.write_storage::<WindowComponent>();
+        let mut window_component = window_components.get_mut(self.entity).unwrap();
+
         match event {
             glutin::WindowEvent::CloseRequested
             | glutin::WindowEvent::KeyboardInput {
@@ -360,20 +364,89 @@ impl RenderWindow {
                 EventResponse::Continue
             }
             glutin::WindowEvent::CursorMoved { position, .. } => {
+                if window_component.clicked.is_some() {
+                    return EventResponse::Continue;
+                }
                 let world_position = WorldPoint::new(position.x as f32, position.y as f32);
                 let results = self.api.hit_test(
                     self.document_id,
                     Some(self.pipeline_id),
                     world_position,
-                    HitTestFlags::all(),
+                    HitTestFlags::empty(),
                 );
+                let interactive = world.read_storage::<Interactive>();
+                let entities = world.entities();
+                let mut events = world.write_storage::<Event>();
                 let hit = results
                     .items
                     .iter()
                     .map(|item| item.tag.0)
-                    .take(1)
-                    .collect();
-                EventResponse::Hit(hit)
+                    .next()
+                    .and_then(|id| {
+                        (&entities, &interactive)
+                            .join()
+                            .find(|(_, i)| i.tag == id)
+                            .map(|(e, _)| e)
+                    });
+
+                let changed = hit != window_component.hovered;
+
+                if changed {
+                    match (hit, window_component.hovered) {
+                        (Some(new), Some(old)) => {
+                            events
+                                .insert(old, Event::new(Interaction::Hovered(false)))
+                                .ok();
+                            events
+                                .insert(new, Event::new(Interaction::Hovered(true)))
+                                .ok();
+                        }
+                        (Some(new), None) => {
+                            events
+                                .insert(new, Event::new(Interaction::Hovered(true)))
+                                .ok();
+                        }
+                        (None, Some(old)) => {
+                            events
+                                .insert(old, Event::new(Interaction::Hovered(false)))
+                                .ok();
+                        }
+                        _ => {}
+                    }
+                }
+
+                window_component.hovered = hit;
+
+                if changed {
+                    EventResponse::Dirty
+                } else {
+                    EventResponse::Continue
+                }
+            }
+            glutin::WindowEvent::MouseInput {
+                button: glutin::MouseButton::Left,
+                state,
+                ..
+            } => {
+                match state {
+                    glutin::ElementState::Pressed => {
+                        if let Some(entity) = window_component.hovered {
+                            let mut events = world.write_storage::<Event>();
+                            events
+                                .insert(entity, Event::new(Interaction::MouseDown))
+                                .ok();
+                            window_component.clicked = Some(entity);
+                        }
+                    }
+                    glutin::ElementState::Released => {
+                        if let Some(entity) = window_component.clicked.take() {
+                            let mut events = world.write_storage::<Event>();
+                            events.insert(entity, Event::new(Interaction::MouseUp)).ok();
+                        }
+                    }
+                }
+
+                EventResponse::Dirty
             }
             _ => EventResponse::Continue,
         }
@@ -384,7 +457,6 @@ enum EventResponse {
     Continue,
     Quit,
     Dirty,
-    Hit(Vec<u64>),
 }
 
 struct Notifier {

@@ -105,20 +105,14 @@ impl Component for Size {
 pub struct LayoutContext<'a, 'b> {
     positions: &'a mut WriteStorage<'b, Position>,
     sizes: &'a mut WriteStorage<'b, Size>,
-    hovered_tags: &'a [u64],
 }
 
 impl<'a, 'b> LayoutContext<'a, 'b> {
     pub(crate) fn new(
         positions: &'a mut WriteStorage<'b, Position>,
         sizes: &'a mut WriteStorage<'b, Size>,
-        hovered_tags: &'a [u64],
     ) -> LayoutContext<'a, 'b> {
-        LayoutContext {
-            positions,
-            sizes,
-            hovered_tags,
-        }
+        LayoutContext { positions, sizes }
     }
 
     pub fn set_position(&mut self, widget: WidgetId, position: Position) {
@@ -127,9 +121,5 @@ impl<'a, 'b> LayoutContext<'a, 'b> {
 
     pub fn get_size(&mut self, widget: WidgetId) -> Size {
         *self.sizes.get(widget.0).unwrap()
-    }
-
-    pub fn is_hovered(&self, tag: u64) -> bool {
-        self.hovered_tags.contains(&tag)
     }
 }

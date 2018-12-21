@@ -1,6 +1,5 @@
-use imagine::{
-    BoxConstraint, InteractiveState, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId,
-};
+use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
+use std::any::Any;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 enum FlexPhase {
@@ -12,6 +11,10 @@ enum FlexPhase {
 pub enum FlexDirection {
     Horizontal,
     Vertical,
+}
+
+pub enum FlexEvent {
+    AddChild(FlexItem),
 }
 
 impl FlexDirection {
@@ -141,7 +144,6 @@ impl Widget for Flex {
         &mut self,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        _interactive_state: InteractiveState,
         size: Option<Size>,
     ) -> LayoutResult {
         match size {
@@ -221,5 +223,13 @@ impl Widget for Flex {
                 FlexItem::Flex(child, _) => *child,
             })
             .collect()
+    }
+
+    fn update(&mut self, event: Box<dyn Any>) {
+        if let Ok(event) = event.downcast::<FlexEvent>() {
+            match *event {
+                FlexEvent::AddChild(child) => self.children.push(child),
+            }
+        }
     }
 }

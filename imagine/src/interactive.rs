@@ -9,16 +9,38 @@ pub enum Interaction {
     MouseUp,
 }
 
-pub struct InteractionContext<'a, 'b> {
+pub struct WidgetContext<'a, 'b> {
     pub(crate) entities: &'a Entities<'b>,
     pub(crate) widgets: &'a mut WriteStorage<'b, WidgetComponent>,
 }
 
-impl InteractionContext<'_, '_> {
+impl WidgetContext<'_, '_> {
     pub fn send_message<M: Any>(&mut self, widget_id: WidgetId, message: M) {
-        if let Some(widget) = self.widgets.get_mut(widget_id.0) {
-            widget.update(Box::new(message));
+        let removed = if let Some(widget) = self.widgets.get_mut(widget_id.0) {
+            widget.update(Box::new(message))
+        } else {
+            None
+        };
+
+        fn remove_widgets<'a, 'b>(
+            entities: &'a Entities<'b>,
+            widgets: &'a mut WriteStorage<'b, WidgetComponent>,
+            ids: &'a [WidgetId],
+        ) {
+            for id in ids {
+                let widget = widgets.get(id.0).unwrap();
+                remove_widgets(entities, widgets, &widget.children());
+                entities.delete(id.0).ok();
+            }
         }
+
+        if let Some(removed) = removed {
+            remove_widgets(self.entities, self.widgets, &removed);
+        }
+    }
+
+    pub fn remove_widget(&mut self, widget_id: WidgetId) {
+        self.entities.delete(widget_id.0).ok();
     }
 
     pub fn create_widget<W: Widget + 'static>(&mut self, widget: W) -> WidgetId {
@@ -37,13 +59,13 @@ impl InteractionContext<'_, '_> {
 }
 
 pub struct ClickListener {
-    pub(crate) on_click: Box<dyn Fn(&mut InteractionContext) -> () + Send + Sync + 'static>,
+    pub(crate) on_click: Box<dyn Fn(&mut WidgetContext) -> () + Send + Sync + 'static>,
 }
 
 impl ClickListener {
     pub fn new<F>(click: F) -> ClickListener
     where
-        F: Fn(&mut InteractionContext) -> () + Send + Sync + 'static,
+        F: Fn(&mut WidgetContext) -> () + Send + Sync + 'static,
     {
         ClickListener {
             on_click: Box::new(click),

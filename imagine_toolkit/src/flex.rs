@@ -15,6 +15,7 @@ pub enum FlexDirection {
 
 pub enum FlexEvent {
     AddChild(FlexItem),
+    RemoveChild,
 }
 
 impl FlexDirection {
@@ -225,11 +226,24 @@ impl Widget for Flex {
             .collect()
     }
 
-    fn update(&mut self, event: Box<dyn Any>) {
+    fn update(&mut self, event: Box<dyn Any>) -> Option<Vec<WidgetId>> {
         if let Ok(event) = event.downcast::<FlexEvent>() {
             match *event {
-                FlexEvent::AddChild(child) => self.children.push(child),
+                FlexEvent::AddChild(child) => {
+                    self.children.push(child);
+                }
+                FlexEvent::RemoveChild => {
+                    return self
+                        .children
+                        .pop()
+                        .map(|item| match item {
+                            FlexItem::NonFlex(id) => id,
+                            FlexItem::Flex(id, _) => id,
+                        })
+                        .map(|item| vec![item]);
+                }
             }
         }
+        None
     }
 }

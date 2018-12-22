@@ -1,6 +1,6 @@
 use crate::{
     interactive::{Event, Interaction},
-    ClickListener, InteractionContext, WidgetComponent,
+    ClickListener, WidgetComponent, WidgetContext,
 };
 use specs::{Entities, Join, System, WriteStorage};
 
@@ -22,7 +22,7 @@ impl<'a> System<'a> for InteractionSystem {
         for (entity, event) in (&entities, &mut events).join() {
             if let Interaction::MouseDown = event.event {
                 if let Some(listener) = listeners.get_mut(entity) {
-                    let mut context = InteractionContext {
+                    let mut context = WidgetContext {
                         entities: &entities,
                         widgets: &mut widgets,
                     };

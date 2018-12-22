@@ -1,4 +1,5 @@
-use crate::WidgetId;
+use crate::{text::FinalText, WidgetId};
+use rusttype::Font;
 use specs::{Component, DenseVecStorage, WriteStorage};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -105,14 +106,20 @@ impl Component for Size {
 pub struct LayoutContext<'a, 'b> {
     positions: &'a mut WriteStorage<'b, Position>,
     sizes: &'a mut WriteStorage<'b, Size>,
+    font: &'a Font<'static>,
 }
 
 impl<'a, 'b> LayoutContext<'a, 'b> {
     pub(crate) fn new(
         positions: &'a mut WriteStorage<'b, Position>,
         sizes: &'a mut WriteStorage<'b, Size>,
+        font: &'a Font<'static>,
     ) -> LayoutContext<'a, 'b> {
-        LayoutContext { positions, sizes }
+        LayoutContext {
+            positions,
+            sizes,
+            font,
+        }
     }
 
     pub fn set_position(&mut self, widget: WidgetId, position: Position) {
@@ -121,5 +128,9 @@ impl<'a, 'b> LayoutContext<'a, 'b> {
 
     pub fn get_size(&mut self, widget: WidgetId) -> Size {
         *self.sizes.get(widget.0).unwrap()
+    }
+
+    pub fn layout_text(&self, text: &str) -> FinalText {
+        FinalText::new(self.font, text)
     }
 }

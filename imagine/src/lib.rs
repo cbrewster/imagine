@@ -2,6 +2,7 @@ mod interactive;
 mod layout;
 mod render;
 mod systems;
+pub mod text;
 mod widget;
 
 use self::{
@@ -9,9 +10,11 @@ use self::{
     systems::{InteractionSystem, LayoutSystem, RenderSystem},
     widget::WidgetComponent,
 };
+use app_units::Au;
 use gleam::gl;
 use glutin::GlContext;
 use glutin::{EventsLoop, WindowBuilder};
+use rusttype::Font;
 use specs::{
     Builder, Component, DenseVecStorage, Dispatcher, DispatcherBuilder, Entity, Join, World,
 };
@@ -19,11 +22,13 @@ use std::collections::HashMap;
 use webrender::api::*;
 
 pub use self::{
-    interactive::{ClickListener, Interaction, InteractionContext},
+    interactive::{ClickListener, Interaction, WidgetContext},
     layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size},
     render::RenderContext,
     widget::{Widget, WidgetId},
 };
+
+const FONT_DATA: &[u8] = include_bytes!("../resources/FreeSans.ttf");
 
 pub struct Imagine<'a, 'b> {
     world: World,
@@ -36,11 +41,6 @@ pub struct Imagine<'a, 'b> {
 impl<'a, 'b> Default for Imagine<'a, 'b> {
     fn default() -> Imagine<'a, 'b> {
         let mut world = World::new();
-        world.register::<WidgetComponent>();
-        world.register::<Position>();
-        world.register::<Size>();
-        world.register::<Interactive>();
-
         let mut dispatcher = DispatcherBuilder::new()
             .with(InteractionSystem, "interaction", &[])
             .with(LayoutSystem, "layout", &["interaction"])
@@ -65,21 +65,26 @@ impl<'a, 'b> Imagine<'a, 'b> {
     pub fn create_window(&mut self, title: &str, root: WidgetId, size: Size) {
         // TODO: Generate Unique PipelineIds per Window.
         let pipeline_id = PipelineId(0, 0);
-        let window_entity = self
-            .world
-            .create_entity()
-            .with(WindowComponent {
-                root,
-                layout_size: LayoutSize::zero(),
-                dirty: true,
-                pipeline_id,
-                display_list_builder: None,
-                hovered: None,
-                clicked: None,
-            })
-            .build();
+        let window_entity = self.world.create_entity().build();
         let render_window =
             RenderWindow::new(title, &self.events_loop, window_entity, size, pipeline_id).unwrap();
+        let mut windows = self.world.write_storage::<WindowComponent>();
+        windows
+            .insert(
+                window_entity,
+                WindowComponent {
+                    root,
+                    layout_size: LayoutSize::zero(),
+                    dirty: true,
+                    pipeline_id,
+                    display_list_builder: None,
+                    hovered: None,
+                    clicked: None,
+                    font_instance_key: render_window.font_instance_key,
+                    font: Font::from_bytes(FONT_DATA).unwrap(),
+                },
+            )
+            .ok();
         self.windows
             .insert(render_window.window.id(), render_window);
     }
@@ -105,7 +110,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
             mut events_loop,
             mut dispatcher,
             mut windows,
-            world,
+            mut world,
             mut renderers,
         } = self;
 
@@ -163,6 +168,7 @@ impl<'a, 'b> Imagine<'a, 'b> {
             }
 
             dispatcher.dispatch(&world.res);
+            world.maintain();
 
             let mut window_components = world.write_storage::<WindowComponent>();
 
@@ -230,6 +236,8 @@ pub(crate) struct WindowComponent {
     hovered: Option<Entity>,
     clicked: Option<Entity>,
     pub(crate) display_list_builder: Option<DisplayListBuilder>,
+    pub(crate) font_instance_key: FontInstanceKey,
+    pub(crate) font: Font<'static>,
 }
 
 impl WindowComponent {
@@ -258,6 +266,7 @@ pub struct RenderWindow {
     api: RenderApi,
     entity: Entity,
     pipeline_id: PipelineId,
+    font_instance_key: FontInstanceKey,
 }
 
 impl RenderWindow {
@@ -306,8 +315,24 @@ impl RenderWindow {
             webrender::Renderer::new(gl.clone(), notifier, opts, None).unwrap();
         let api = sender.create_api();
         let document_id = api.add_document(framebuffer_size, 0);
-
         let epoch = Epoch(0);
+
+        let mut txn = Transaction::new();
+
+        let font_key = api.generate_font_key();
+        txn.add_raw_font(font_key, Vec::from(FONT_DATA), 0);
+
+        let font_instance_key = api.generate_font_instance_key();
+        txn.add_font_instance(
+            font_instance_key,
+            font_key,
+            Au::from_px(32),
+            None,
+            None,
+            Vec::new(),
+        );
+
+        api.send_transaction(document_id, txn);
 
         Ok(RenderWindow {
             window,
@@ -317,6 +342,7 @@ impl RenderWindow {
             document_id,
             entity,
             pipeline_id,
+            font_instance_key,
         })
     }
 
@@ -389,6 +415,7 @@ impl RenderWindow {
                     .and_then(|id| {
                         (&entities, &interactive)
                             .join()
+                            .filter(|(e, _)| entities.is_alive(*e))
                             .find(|(_, i)| i.tag == id)
                             .map(|(e, _)| e)
                     });

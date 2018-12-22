@@ -18,13 +18,15 @@ pub trait Widget: Send + Sync {
 
     fn children(&self) -> Vec<WidgetId>;
 
-    fn render(&self, _geomtery: Geometry, _render_context: &mut RenderContext) -> Option<u64> {
+    fn render(&self, _geometry: Geometry, _render_context: &mut RenderContext) -> Option<u64> {
         None
     }
 
     fn handle_interaction(&mut self, _interaction: Interaction) {}
 
-    fn update(&mut self, _event: Box<dyn Any>) {}
+    fn update(&mut self, _event: Box<dyn Any>) -> Option<Vec<WidgetId>> {
+        None
+    }
 }
 
 pub(crate) struct WidgetComponent {

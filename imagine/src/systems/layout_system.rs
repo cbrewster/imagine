@@ -56,7 +56,7 @@ fn request_layout<'a>(
     let mut size_prev_child = None;
     loop {
         let result = widgets.get_mut(widget.0).unwrap().layout(
-            &mut LayoutContext::new(positions, sizes),
+            &mut LayoutContext::new(positions, sizes, &window.font),
             constraint,
             size_prev_child,
         );

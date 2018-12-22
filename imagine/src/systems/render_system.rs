@@ -41,7 +41,7 @@ impl<'a> System<'a> for RenderSystem {
                 RasterSpace::Screen,
             );
 
-            let mut render_context = RenderContext::new(&mut builder);
+            let mut render_context = RenderContext::new(&mut builder, window.font_instance_key);
 
             fn render_entities(
                 children: &[WidgetId],
@@ -63,7 +63,11 @@ impl<'a> System<'a> for RenderSystem {
 
                     match widget.render(box_size, render_context) {
                         Some(tag) => {
-                            interactive.insert(widget_id.0, Interactive::new(tag)).ok();
+                            if let Some(interactive) = interactive.get_mut(widget_id.0) {
+                                interactive.tag = tag;
+                            } else {
+                                interactive.insert(widget_id.0, Interactive::new(tag)).ok();
+                            }
                         }
                         None => {
                             interactive.remove(widget_id.0);

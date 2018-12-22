@@ -31,7 +31,10 @@ End users use `WidgetId`s to build their UI hierarchy and to attach event listen
   - Hover
   - Click
 
-###
+### Example
+
+**Calculator**
+![Calculator](calculator.png)
 
 ### Inspiration
 

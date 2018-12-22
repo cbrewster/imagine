@@ -26,7 +26,10 @@ impl FinalText {
                     index: glyph.id().0,
                     point: LayoutPoint::new(position.x, position.y),
                 });
-                (glyphs, max_width.max(position.x + glyph.scale().x))
+                (
+                    glyphs,
+                    max_width.max(position.x + glyph.unpositioned().h_metrics().advance_width),
+                )
             },
         );
 

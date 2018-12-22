@@ -9,6 +9,9 @@ edition = "2018"
 name = "basic"
 path = "basic.rs"
 
+[[bin]]
+name = "calculator"
+path = "calculator.rs"
 
 [dependencies]
 imagine = {path = "../imagine"}

@@ -1,4 +1,4 @@
-use crate::{Label, Padding};
+use crate::{Center, Label, Padding};
 use imagine::{
     BoxConstraint, Geometry, Imagine, Interaction, LayoutContext, LayoutResult, Position,
     RenderContext, Size, Widget, WidgetId,
@@ -9,19 +9,20 @@ pub struct Button {
     pub color: (f32, f32, f32, f32),
     hovered: bool,
     down: bool,
-    padding: WidgetId,
+    child: WidgetId,
 }
 
 impl Button {
     pub fn new(imagine: &mut Imagine, color: (f32, f32, f32, f32), text: &str) -> Button {
         let label = imagine.create_widget(Label::new(text));
-        let padding = imagine.create_widget(Padding::new(10.0, 10.0, 10.0, 10.0, label));
+        let center = imagine.create_widget(Center::new(label));
+        let child = imagine.create_widget(Padding::new(10.0, 10.0, 10.0, 10.0, center));
 
         Button {
             color,
             down: false,
             hovered: false,
-            padding,
+            child,
         }
     }
 }
@@ -35,8 +36,11 @@ impl Widget for Button {
     ) -> LayoutResult {
         match size {
             None => {
-                layout_context.set_position(self.padding, Position::zero());
-                LayoutResult::RequestChildSize(self.padding, box_constraint)
+                layout_context.set_position(self.child, Position::zero());
+                LayoutResult::RequestChildSize(
+                    self.child,
+                    BoxConstraint::new(Size::zero(), box_constraint.max),
+                )
             }
             Some(size) => LayoutResult::Size(box_constraint.constrain(size)),
         }
@@ -51,14 +55,20 @@ impl Widget for Button {
     }
 
     fn children(&self) -> Vec<WidgetId> {
-        vec![self.padding]
+        vec![self.child]
     }
 
     fn render(&self, geometry: Geometry, render_context: &mut RenderContext) -> Option<u64> {
-        let mut info = LayoutPrimitiveInfo::new(LayoutRect::new(
+        let mut rect = LayoutRect::new(
             LayoutPoint::new(geometry.position.x, geometry.position.y),
             LayoutSize::new(geometry.size.width, geometry.size.height),
-        ));
+        );
+
+        if self.down {
+            rect = rect.inflate(-2.0, -2.0);
+        }
+
+        let mut info = LayoutPrimitiveInfo::new(rect);
         let identifier = render_context.next_tag_identifier();
         info.tag = Some((identifier, 0));
 
@@ -74,11 +84,7 @@ impl Widget for Button {
             None,
         );
 
-        let (r, g, b, mut a) = self.color;
-
-        if self.down {
-            a = 0.5;
-        }
+        let (r, g, b, a) = self.color;
 
         render_context.builder.push_clip_id(clip_id);
 
@@ -88,16 +94,16 @@ impl Widget for Button {
 
         render_context.builder.pop_clip_id();
 
-        if self.hovered {
+        if self.hovered && !self.down {
             render_context.builder.push_box_shadow(
-                &LayoutPrimitiveInfo::new(info.rect),
+                &LayoutPrimitiveInfo::new(info.rect.inflate(4.0, 4.0)),
                 info.rect,
                 LayoutVector2D::new(0.0, 3.0),
                 ColorF::new(0.0, 0.0, 0.0, 0.2),
                 4.0,
                 0.0,
                 border_radius,
-                BoxShadowClipMode::Inset,
+                BoxShadowClipMode::Outset,
             );
         }
 

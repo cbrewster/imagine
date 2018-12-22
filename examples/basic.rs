@@ -41,7 +41,7 @@ fn main() {
     ));
 
     let root = imagine.create_widget(Flex::new(
-        vec![FlexItem::Flex(flex, 1), FlexItem::NonFlex(buttons)],
+        vec![FlexItem::Flex(flex, 9), FlexItem::Flex(buttons, 1)],
         FlexDirection::Vertical,
         FlexAlign::Middle,
     ));

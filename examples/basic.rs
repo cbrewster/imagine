@@ -2,9 +2,11 @@ use imagine::{ClickListener, Imagine, Size, WidgetId};
 use imagine_toolkit::{
     Button, FillBox, Flex, FlexAlign, FlexDirection, FlexEvent, FlexItem, Label, Padding,
 };
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn main() {
     let mut imagine = Imagine::default();
+    let count = AtomicUsize::new(0);
 
     let rows = (0..2)
         .map(|_| FlexItem::Flex(flex_row(&mut imagine), 1))
@@ -20,7 +22,11 @@ fn main() {
     imagine.add_click_listener(
         add_button,
         ClickListener::new(move |context| {
-            let new_row = context.create_widget(Label::new("New Item"));
+            count.fetch_add(1, Ordering::SeqCst);
+            let new_row = context.create_widget(Label::new(format!(
+                "New Item {}",
+                count.load(Ordering::SeqCst)
+            )));
             let padded = context.create_widget(Padding::new(2.0, 2.0, 2.0, 2.0, new_row));
             context.send_message(flex, FlexEvent::AddChild(FlexItem::Flex(padded, 1)))
         }),

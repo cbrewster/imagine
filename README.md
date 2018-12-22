@@ -34,6 +34,7 @@ End users use `WidgetId`s to build their UI hierarchy and to attach event listen
 ### Example
 
 **Calculator**
+
 ![Calculator](calculator.png)
 
 ### Inspiration

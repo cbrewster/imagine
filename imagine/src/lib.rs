@@ -1,10 +1,11 @@
-pub mod layout;
-pub mod render;
-pub mod systems;
-pub mod widget;
+mod interactive;
+mod layout;
+mod render;
+mod systems;
+mod widget;
 
 use self::{
-    render::{Event, Interactive},
+    interactive::{Event, Interactive},
     systems::{InteractionSystem, LayoutSystem, RenderSystem},
     widget::WidgetComponent,
 };
@@ -17,9 +18,12 @@ use specs::{
 use std::collections::HashMap;
 use webrender::api::*;
 
-pub use self::layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size};
-pub use self::render::{ClickListener, InteractionContext, RenderContext};
-pub use self::widget::{Interaction, Widget, WidgetId};
+pub use self::{
+    interactive::{ClickListener, Interaction, InteractionContext},
+    layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size},
+    render::RenderContext,
+    widget::{Widget, WidgetId},
+};
 
 pub struct Imagine<'a, 'b> {
     world: World,

@@ -1,8 +1,6 @@
 use crate::{
-    layout::{Geometry, Position, Size},
-    render::Interactive,
-    widget::WidgetComponent,
-    RenderContext, WidgetId, WindowComponent,
+    Geometry, Interactive, Position, RenderContext, Size, WidgetComponent, WidgetId,
+    WindowComponent,
 };
 use specs::{Entities, Join, ReadStorage, System, WriteStorage};
 use webrender::api::*;

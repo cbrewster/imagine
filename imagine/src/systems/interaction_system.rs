@@ -1,5 +1,6 @@
 use crate::{
-    render::Event, widget::WidgetComponent, ClickListener, Interaction, InteractionContext,
+    interactive::{Event, Interaction},
+    ClickListener, InteractionContext, WidgetComponent,
 };
 use specs::{Entities, Join, System, WriteStorage};
 

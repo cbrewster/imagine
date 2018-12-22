@@ -1,13 +1,9 @@
-use crate::{BoxConstraint, Geometry, LayoutContext, LayoutResult, RenderContext, Size};
+use crate::{
+    interactive::Interaction, BoxConstraint, Geometry, LayoutContext, LayoutResult, RenderContext,
+    Size,
+};
 use specs::{Component, DenseVecStorage, Entity};
 use std::any::Any;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Interaction {
-    Hovered(bool),
-    MouseDown,
-    MouseUp,
-}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct WidgetId(pub(crate) Entity);

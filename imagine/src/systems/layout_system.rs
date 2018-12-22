@@ -1,6 +1,6 @@
 use crate::{
+    interactive::Interactive,
     layout::{BoxConstraint, LayoutContext, LayoutResult, Position, Size},
-    render::Interactive,
     widget::WidgetComponent,
     WidgetId, WindowComponent,
 };

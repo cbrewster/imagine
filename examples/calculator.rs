@@ -41,7 +41,7 @@ fn calc_row(imagine: &mut Imagine, items: &[(&str, usize)]) -> WidgetId {
     let children = items
         .iter()
         .map(|(item, flex)| {
-            let button = Button::new(imagine, (0.957, 0.586, 0.16, 1.0), item);
+            let button = Button::new(imagine, (0.957, 0.586, 0.16, 1.0), *item);
             let button = imagine.create_widget(button);
             FlexItem::Flex(
                 imagine.create_widget(Padding::new(2.0, 2.0, 2.0, 2.0, button)),

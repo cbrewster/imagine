@@ -13,6 +13,10 @@ path = "basic.rs"
 name = "calculator"
 path = "calculator.rs"
 
+[[bin]]
+name = "flex_text"
+path = "flex_text.rs"
+
 [dependencies]
 imagine = {path = "../imagine"}
 imagine_toolkit = {path = "../imagine_toolkit"}

@@ -25,7 +25,7 @@ pub use self::{
     interactive::{ClickListener, Interaction, WidgetContext},
     layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size},
     render::RenderContext,
-    widget::{Widget, WidgetId},
+    widget::{Widget, WidgetId, WidgetBuilder},
 };
 
 const FONT_DATA: &[u8] = include_bytes!("../resources/FreeSans.ttf");

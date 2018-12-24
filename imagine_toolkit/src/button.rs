@@ -1,7 +1,7 @@
 use crate::{Center, Label, Padding};
 use imagine::{
     BoxConstraint, Geometry, Imagine, Interaction, LayoutContext, LayoutResult, Position,
-    RenderContext, Size, Widget, WidgetId,
+    RenderContext, Size, Widget, WidgetBuilder, WidgetId,
 };
 use webrender::api::*;
 
@@ -13,7 +13,11 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(imagine: &mut Imagine, color: (f32, f32, f32, f32), text: &str) -> Button {
+    pub fn new<T: Into<String>>(
+        imagine: &mut Imagine,
+        color: (f32, f32, f32, f32),
+        text: T,
+    ) -> Button {
         let label = imagine.create_widget(Label::new(text));
         let center = imagine.create_widget(Center::new(label));
         let child = imagine.create_widget(Padding::new(10.0, 10.0, 10.0, 10.0, center));
@@ -108,5 +112,33 @@ impl Widget for Button {
         }
 
         Some(identifier)
+    }
+}
+
+#[derive(Default)]
+pub struct ButtonBuilder {
+    text: Option<String>,
+    color: Option<(f32, f32, f32, f32)>,
+}
+
+impl ButtonBuilder {
+    pub fn with_text(mut self, text: String) -> Self {
+        self.text = Some(text);
+        self
+    }
+
+    pub fn with_color(mut self, color: (f32, f32, f32, f32)) -> Self {
+        self.color = Some(color);
+        self
+    }
+}
+
+impl WidgetBuilder for ButtonBuilder {
+    fn build(self, imagine: &mut Imagine) -> WidgetId {
+        let color = self.color.unwrap_or((1.0, 1.0, 1.0, 1.0));
+        let text = self.text.unwrap_or_else(|| "".into());
+
+        let button = Button::new(imagine, color, text);
+        imagine.create_widget(button)
     }
 }

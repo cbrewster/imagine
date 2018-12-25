@@ -2,6 +2,10 @@ use crate::{Widget, WidgetComponent, WidgetId};
 use specs::{Component, DenseVecStorage, Entities, WriteStorage};
 use std::any::Any;
 
+pub trait Message: Any + Send + Sync {}
+
+impl<T> Message for T where T: Any + Send + Sync {}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Interaction {
     Hovered(bool),
@@ -9,13 +13,26 @@ pub enum Interaction {
     MouseUp,
 }
 
-pub struct WidgetContext<'a, 'b> {
+pub struct WidgetContext<'a, 'b, M: Message> {
     pub(crate) entities: &'a Entities<'b>,
     pub(crate) widgets: &'a mut WriteStorage<'b, WidgetComponent>,
+    pub(crate) click_listeners: &'a mut WriteStorage<'b, ClickListener<M>>,
 }
 
-impl WidgetContext<'_, '_> {
-    pub fn send_message<M: Any>(&mut self, widget_id: WidgetId, message: M) {
+impl<'a, 'b, M: Message> WidgetContext<'a, 'b, M> {
+    pub(crate) fn new(
+        entities: &'a Entities<'b>,
+        widgets: &'a mut WriteStorage<'b, WidgetComponent>,
+        click_listeners: &'a mut WriteStorage<'b, ClickListener<M>>,
+    ) -> WidgetContext<'a, 'b, M> {
+        WidgetContext {
+            entities,
+            widgets,
+            click_listeners,
+        }
+    }
+
+    pub fn send_message<T: Any>(&mut self, widget_id: WidgetId, message: T) {
         let removed = if let Some(widget) = self.widgets.get_mut(widget_id.0) {
             widget.update(Box::new(message))
         } else {
@@ -39,6 +56,10 @@ impl WidgetContext<'_, '_> {
         }
     }
 
+    pub fn add_click_listener(&mut self, widget_id: WidgetId, listener: ClickListener<M>) {
+        self.click_listeners.insert(widget_id.0, listener).ok();
+    }
+
     pub fn remove_widget(&mut self, widget_id: WidgetId) {
         self.entities.delete(widget_id.0).ok();
     }
@@ -58,14 +79,14 @@ impl WidgetContext<'_, '_> {
     }
 }
 
-pub struct ClickListener {
-    pub(crate) on_click: Box<dyn Fn(&mut WidgetContext) -> () + Send + Sync + 'static>,
+pub struct ClickListener<M: Message> {
+    pub(crate) on_click: Box<dyn Fn() -> M + Send + Sync + 'static>,
 }
 
-impl ClickListener {
-    pub fn new<F>(click: F) -> ClickListener
+impl<M: Message> ClickListener<M> {
+    pub fn new<F>(click: F) -> ClickListener<M>
     where
-        F: Fn(&mut WidgetContext) -> () + Send + Sync + 'static,
+        F: Fn() -> M + Send + Sync + 'static,
     {
         ClickListener {
             on_click: Box::new(click),
@@ -73,7 +94,7 @@ impl ClickListener {
     }
 }
 
-impl Component for ClickListener {
+impl<M: Message> Component for ClickListener<M> {
     type Storage = DenseVecStorage<Self>;
 }
 

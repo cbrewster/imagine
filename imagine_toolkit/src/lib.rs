@@ -12,7 +12,7 @@ pub use self::{
     center::Center,
     fill_box::FillBox,
     flex::{Flex, FlexAlign, FlexDirection, FlexEvent, FlexItem},
-    label::Label,
+    label::{Label, LabelMessage},
     list::List,
     padding::Padding,
     split::Split,

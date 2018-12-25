@@ -19,30 +19,57 @@ use specs::{
     Builder, Component, DenseVecStorage, Dispatcher, DispatcherBuilder, Entity, Join, World,
 };
 use std::collections::HashMap;
+use std::mem;
 use webrender::api::*;
 
 pub use self::{
-    interactive::{ClickListener, Interaction, WidgetContext},
+    interactive::{ClickListener, Interaction, Message, WidgetContext},
     layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size},
     render::RenderContext,
-    widget::{Widget, WidgetId, WidgetBuilder},
+    widget::{Widget, WidgetId},
 };
 
 const FONT_DATA: &[u8] = include_bytes!("../resources/FreeSans.ttf");
 
-pub struct Imagine<'a, 'b> {
+pub trait Application {
+    type Message: Message;
+
+    fn build(&mut self, context: &mut WidgetContext<Self::Message>) -> WidgetId;
+
+    fn handle_message(
+        &mut self,
+        _message: Self::Message,
+        _context: &mut WidgetContext<Self::Message>,
+    ) {}
+}
+
+pub(crate) struct MessageQueue<M: Message>(Vec<M>);
+
+impl<M: Message> Default for MessageQueue<M> {
+    fn default() -> MessageQueue<M> {
+        MessageQueue(Vec::new())
+    }
+}
+
+pub struct Imagine<'a, 'b, A: Application> {
     world: World,
     dispatcher: Dispatcher<'a, 'b>,
     events_loop: EventsLoop,
     windows: HashMap<glutin::WindowId, RenderWindow>,
     renderers: Vec<webrender::Renderer>,
+    application: A,
 }
 
-impl<'a, 'b> Default for Imagine<'a, 'b> {
-    fn default() -> Imagine<'a, 'b> {
+impl<'a, 'b, A: Application> Imagine<'a, 'b, A> {
+    pub fn new(application: A) -> Imagine<'a, 'b, A> {
         let mut world = World::new();
+        world.add_resource(MessageQueue::<A::Message>(Vec::new()));
         let mut dispatcher = DispatcherBuilder::new()
-            .with(InteractionSystem, "interaction", &[])
+            .with(
+                InteractionSystem::<A::Message>::default(),
+                "interaction",
+                &[],
+            )
             .with(LayoutSystem, "layout", &["interaction"])
             .with(RenderSystem, "render", &["interaction", "layout"])
             .build();
@@ -57,18 +84,22 @@ impl<'a, 'b> Default for Imagine<'a, 'b> {
             events_loop,
             windows: HashMap::new(),
             renderers: Vec::new(),
+            application,
         }
     }
-}
 
-impl<'a, 'b> Imagine<'a, 'b> {
-    pub fn create_window(&mut self, title: &str, root: WidgetId, size: Size) {
+    pub fn create_window(&mut self, title: &str, size: Size) {
         // TODO: Generate Unique PipelineIds per Window.
         let pipeline_id = PipelineId(0, 0);
         let window_entity = self.world.create_entity().build();
         let render_window =
             RenderWindow::new(title, &self.events_loop, window_entity, size, pipeline_id).unwrap();
         let mut windows = self.world.write_storage::<WindowComponent>();
+        let entities = self.world.entities();
+        let mut widgets = self.world.write_storage::<WidgetComponent>();
+        let mut click_listeners = self.world.write_storage::<ClickListener<A::Message>>();
+        let mut context = WidgetContext::new(&entities, &mut widgets, &mut click_listeners);
+        let root = self.application.build(&mut context);
         windows
             .insert(
                 window_entity,
@@ -89,22 +120,6 @@ impl<'a, 'b> Imagine<'a, 'b> {
             .insert(render_window.window.id(), render_window);
     }
 
-    pub fn create_widget<W: Widget + 'static>(&mut self, widget: W) -> WidgetId {
-        WidgetId(
-            self.world
-                .create_entity()
-                .with(WidgetComponent {
-                    inner: Box::new(widget),
-                })
-                .build(),
-        )
-    }
-
-    pub fn add_click_listener(&mut self, widget_id: WidgetId, listener: ClickListener) {
-        let mut listeners = self.world.write_storage::<ClickListener>();
-        listeners.insert(widget_id.0, listener).ok();
-    }
-
     pub fn run(self) {
         let Imagine {
             mut events_loop,
@@ -112,13 +127,14 @@ impl<'a, 'b> Imagine<'a, 'b> {
             mut windows,
             mut world,
             mut renderers,
+            mut application,
         } = self;
 
         events_loop.run_forever(|event| {
             if let glutin::Event::WindowEvent { event, window_id } = event {
                 let mut response = EventResponse::Continue;
                 if let Some(window) = windows.get_mut(&window_id) {
-                    response = window.handle_event(event, &world);
+                    response = window.handle_event::<A::Message>(event, &world);
                 }
                 match response {
                     EventResponse::Quit => {
@@ -169,6 +185,18 @@ impl<'a, 'b> Imagine<'a, 'b> {
 
             dispatcher.dispatch(&world.res);
             world.maintain();
+
+            let entities = world.entities();
+            let mut widgets = world.write_storage::<WidgetComponent>();
+            let mut click_listeners = world.write_storage::<ClickListener<A::Message>>();
+            let mut context = WidgetContext::new(&entities, &mut widgets, &mut click_listeners);
+
+            let mut message_queue = world.write_resource::<MessageQueue<A::Message>>();
+            let messages = mem::replace(&mut *message_queue, MessageQueue::default());
+
+            for message in messages.0 {
+                application.handle_message(message, &mut context);
+            }
 
             let mut window_components = world.write_storage::<WindowComponent>();
 
@@ -346,7 +374,11 @@ impl RenderWindow {
         })
     }
 
-    fn handle_event(&mut self, event: glutin::WindowEvent, world: &World) -> EventResponse {
+    fn handle_event<T: 'static + Send + Sync>(
+        &mut self,
+        event: glutin::WindowEvent,
+        world: &World,
+    ) -> EventResponse {
         let mut window_components = world.write_storage::<WindowComponent>();
         let mut window_component = window_components.get_mut(self.entity).unwrap();
 

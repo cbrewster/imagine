@@ -1,5 +1,5 @@
 use crate::{
-    interactive::Interaction, BoxConstraint, Geometry, Imagine, LayoutContext, LayoutResult,
+    interactive::Interaction, BoxConstraint, Geometry, LayoutContext, LayoutResult,
     RenderContext, Size,
 };
 use specs::{Component, DenseVecStorage, Entity};
@@ -49,8 +49,4 @@ impl std::ops::DerefMut for WidgetComponent {
 
 impl Component for WidgetComponent {
     type Storage = DenseVecStorage<Self>;
-}
-
-pub trait WidgetBuilder {
-    fn build(self, imagine: &mut Imagine) -> WidgetId;
 }

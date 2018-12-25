@@ -2,7 +2,12 @@ use imagine::{
     text::FinalText, BoxConstraint, Geometry, LayoutContext, LayoutResult, RenderContext, Size,
     Widget, WidgetId,
 };
+use std::any::Any;
 use webrender::api::*;
+
+pub enum LabelMessage {
+    SetText(String),
+}
 
 pub struct Label {
     text: String,
@@ -49,6 +54,15 @@ impl Widget for Label {
                 render_context.builder,
                 render_context.font_instance_key(),
             );
+        }
+        None
+    }
+
+    fn update(&mut self, event: Box<dyn Any>) -> Option<Vec<WidgetId>> {
+        if let Ok(event) = event.downcast::<LabelMessage>() {
+            match *event {
+                LabelMessage::SetText(text) => self.text = text,
+            }
         }
         None
     }

@@ -1,6 +1,6 @@
 use crate::{
-    interactive::Interaction, BoxConstraint, Geometry, LayoutContext, LayoutResult,
-    RenderContext, Size,
+    interactive::Interaction, text::FinalText, BoxConstraint, Geometry, LayoutContext, Message,
+    RenderContext, Size, WidgetContext,
 };
 use specs::{Component, DenseVecStorage, Entity};
 use std::any::Any;
@@ -8,17 +8,27 @@ use std::any::Any;
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct WidgetId(pub(crate) Entity);
 
+pub trait WidgetBuilder {
+    fn build<T: Message>(self, context: &mut WidgetContext<T>) -> WidgetId;
+}
+
 pub trait Widget: Send + Sync {
     fn layout(
-        &mut self,
+        &self,
+        id: WidgetId,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        size: Option<Size>,
-    ) -> LayoutResult;
+    ) -> Size;
 
     fn children(&self) -> Vec<WidgetId>;
 
-    fn render(&self, _geometry: Geometry, _render_context: &mut RenderContext) -> Option<u64> {
+    fn render(
+        &self,
+        _id: WidgetId,
+        _geometry: Geometry,
+        _text: Option<&FinalText>,
+        _render_context: &mut RenderContext,
+    ) -> Option<u64> {
         None
     }
 

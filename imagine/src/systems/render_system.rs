@@ -1,6 +1,6 @@
 use crate::{
-    Geometry, Interactive, Position, RenderContext, Size, WidgetComponent, WidgetId,
-    WindowComponent,
+    text::FinalText, Geometry, Interactive, Position, RenderContext, Size, WidgetComponent,
+    WidgetId, WindowComponent,
 };
 use specs::{Entities, Join, ReadStorage, System, WriteStorage};
 use webrender::api::*;
@@ -13,13 +13,14 @@ impl<'a> System<'a> for RenderSystem {
         ReadStorage<'a, Size>,
         ReadStorage<'a, Position>,
         ReadStorage<'a, WidgetComponent>,
+        ReadStorage<'a, FinalText>,
         WriteStorage<'a, WindowComponent>,
         WriteStorage<'a, Interactive>,
     );
 
     fn run(
         &mut self,
-        (entities, sizes, positions, widgets, mut windows, mut interactive): Self::SystemData,
+        (entities, sizes, positions, widgets, text, mut windows, mut interactive): Self::SystemData,
     ) {
         for window in (&mut windows).join() {
             if !window.dirty() {
@@ -50,6 +51,7 @@ impl<'a> System<'a> for RenderSystem {
                     &ReadStorage<Size>,
                     &ReadStorage<WidgetComponent>,
                 ),
+                texts: &ReadStorage<FinalText>,
                 interactive: &mut WriteStorage<Interactive>,
                 render_context: &mut RenderContext,
                 entities: &Entities,
@@ -58,10 +60,10 @@ impl<'a> System<'a> for RenderSystem {
                 for widget_id in children {
                     let (position, size, widget) = data.join().get(widget_id.0, entities).unwrap();
                     let new_position = Position::new(offset.x + position.x, offset.y + position.y);
-
+                    let text = texts.get(widget_id.0);
                     let box_size = Geometry::new(new_position, *size);
 
-                    match widget.render(box_size, render_context) {
+                    match widget.render(*widget_id, box_size, text, render_context) {
                         Some(tag) => {
                             if let Some(interactive) = interactive.get_mut(widget_id.0) {
                                 interactive.tag = tag;
@@ -77,6 +79,7 @@ impl<'a> System<'a> for RenderSystem {
                     render_entities(
                         &widget.children(),
                         data,
+                        texts,
                         interactive,
                         render_context,
                         entities,
@@ -88,6 +91,7 @@ impl<'a> System<'a> for RenderSystem {
             render_entities(
                 &[window.root],
                 &(&positions, &sizes, &widgets),
+                &text,
                 &mut interactive,
                 &mut render_context,
                 &entities,

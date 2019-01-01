@@ -1,4 +1,4 @@
-use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
+use imagine::{BoxConstraint, LayoutContext, Position, Size, Widget, WidgetId};
 
 pub struct Padding {
     top: f32,
@@ -22,33 +22,27 @@ impl Padding {
 
 impl Widget for Padding {
     fn layout(
-        &mut self,
+        &self,
+        _id: WidgetId,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        size: Option<Size>,
-    ) -> LayoutResult {
-        match size {
-            None => {
-                let child_constraint = BoxConstraint::new(
-                    Size::new(
-                        box_constraint.min.width - (self.right + self.left),
-                        box_constraint.min.height - (self.top + self.bottom),
-                    ),
-                    Size::new(
-                        box_constraint.max.width - (self.right + self.left),
-                        box_constraint.max.height - (self.top + self.bottom),
-                    ),
-                );
-                LayoutResult::RequestChildSize(self.child, child_constraint)
-            }
-            Some(size) => {
-                layout_context.set_position(self.child, Position::new(self.top, self.left));
-                LayoutResult::Size(Size::new(
-                    size.width + (self.right + self.left),
-                    size.height + (self.top + self.bottom),
-                ))
-            }
-        }
+    ) -> Size {
+        let child_constraint = BoxConstraint::new(
+            Size::new(
+                box_constraint.min.width - (self.right + self.left),
+                box_constraint.min.height - (self.top + self.bottom),
+            ),
+            Size::new(
+                box_constraint.max.width - (self.right + self.left),
+                box_constraint.max.height - (self.top + self.bottom),
+            ),
+        );
+        let child_size = layout_context.layout_widget(self.child, child_constraint);
+        layout_context.set_position(self.child, Position::new(self.top, self.left));
+        Size::new(
+            child_size.width + (self.right + self.left),
+            child_size.height + (self.top + self.bottom),
+        )
     }
 
     fn children(&self) -> Vec<WidgetId> {

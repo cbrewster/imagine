@@ -1,6 +1,6 @@
 use imagine::{
-    BoxConstraint, Geometry, Interaction, LayoutContext, LayoutResult, RenderContext, Size, Widget,
-    WidgetId,
+    text::FinalText, BoxConstraint, Geometry, Interaction, LayoutContext, RenderContext, Size,
+    Widget, WidgetId,
 };
 use webrender::api::*;
 
@@ -24,12 +24,12 @@ impl FillBox {
 
 impl Widget for FillBox {
     fn layout(
-        &mut self,
+        &self,
+        _id: WidgetId,
         _layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        _size: Option<Size>,
-    ) -> LayoutResult {
-        LayoutResult::Size(box_constraint.constrain(self.size))
+    ) -> Size {
+        box_constraint.constrain(self.size)
     }
 
     fn handle_interaction(&mut self, interaction: Interaction) {
@@ -44,7 +44,13 @@ impl Widget for FillBox {
         vec![]
     }
 
-    fn render(&self, geometry: Geometry, render_context: &mut RenderContext) -> Option<u64> {
+    fn render(
+        &self,
+        _id: WidgetId,
+        geometry: Geometry,
+        _text: Option<&FinalText>,
+        render_context: &mut RenderContext,
+    ) -> Option<u64> {
         let mut info = LayoutPrimitiveInfo::new(LayoutRect::new(
             LayoutPoint::new(geometry.position.x, geometry.position.y),
             LayoutSize::new(geometry.size.width, geometry.size.height),

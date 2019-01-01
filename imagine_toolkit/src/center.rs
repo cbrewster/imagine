@@ -1,4 +1,4 @@
-use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
+use imagine::{BoxConstraint, LayoutContext, Position, Size, Widget, WidgetId};
 
 pub struct Center {
     child: WidgetId,
@@ -12,20 +12,16 @@ impl Center {
 
 impl Widget for Center {
     fn layout(
-        &mut self,
+        &self,
+        _id: WidgetId,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        size: Option<Size>,
-    ) -> LayoutResult {
-        match size {
-            None => LayoutResult::RequestChildSize(self.child, box_constraint),
-            Some(size) => {
-                let xdiff = box_constraint.max.width - size.width;
-                let ydiff = box_constraint.max.height - size.height;
-                layout_context.set_position(self.child, Position::new(xdiff / 2.0, ydiff / 2.0));
-                LayoutResult::Size(box_constraint.max)
-            }
-        }
+    ) -> Size {
+        let child_size = layout_context.layout_widget(self.child, box_constraint);
+        let xdiff = box_constraint.max.width - child_size.width;
+        let ydiff = box_constraint.max.height - child_size.height;
+        layout_context.set_position(self.child, Position::new(xdiff / 2.0, ydiff / 2.0));
+        box_constraint.max
     }
 
     fn children(&self) -> Vec<WidgetId> {

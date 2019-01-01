@@ -24,7 +24,7 @@ use webrender::api::*;
 
 pub use self::{
     interactive::{ClickListener, Interaction, Message, WidgetContext},
-    layout::{BoxConstraint, Geometry, LayoutContext, LayoutResult, Position, Size},
+    layout::{BoxConstraint, Geometry, LayoutContext, Position, Size},
     render::RenderContext,
     widget::{Widget, WidgetId},
 };
@@ -40,7 +40,8 @@ pub trait Application {
         &mut self,
         _message: Self::Message,
         _context: &mut WidgetContext<Self::Message>,
-    ) {}
+    ) {
+    }
 }
 
 pub(crate) struct MessageQueue<M: Message>(Vec<M>);

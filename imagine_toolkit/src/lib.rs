@@ -5,7 +5,6 @@ pub mod flex;
 pub mod label;
 pub mod list;
 pub mod padding;
-pub mod split;
 
 pub use self::{
     button::Button,
@@ -15,5 +14,4 @@ pub use self::{
     label::{Label, LabelMessage},
     list::List,
     padding::Padding,
-    split::Split,
 };

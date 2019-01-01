@@ -1,6 +1,6 @@
 use crate::{Center, Label, Padding};
 use imagine::{
-    BoxConstraint, Geometry, Interaction, LayoutContext, LayoutResult, Position, RenderContext,
+    text::FinalText, BoxConstraint, Geometry, Interaction, LayoutContext, Position, RenderContext,
     Size, Widget, WidgetContext, WidgetId,
 };
 use webrender::api::*;
@@ -33,21 +33,17 @@ impl Button {
 
 impl Widget for Button {
     fn layout(
-        &mut self,
+        &self,
+        _id: WidgetId,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        size: Option<Size>,
-    ) -> LayoutResult {
-        match size {
-            None => {
-                layout_context.set_position(self.child, Position::zero());
-                LayoutResult::RequestChildSize(
-                    self.child,
-                    BoxConstraint::new(Size::zero(), box_constraint.max),
-                )
-            }
-            Some(size) => LayoutResult::Size(box_constraint.constrain(size)),
-        }
+    ) -> Size {
+        let child_size = layout_context.layout_widget(
+            self.child,
+            BoxConstraint::new(Size::zero(), box_constraint.max),
+        );
+        layout_context.set_position(self.child, Position::zero());
+        box_constraint.constrain(child_size)
     }
 
     fn handle_interaction(&mut self, interaction: Interaction) {
@@ -62,7 +58,13 @@ impl Widget for Button {
         vec![self.child]
     }
 
-    fn render(&self, geometry: Geometry, render_context: &mut RenderContext) -> Option<u64> {
+    fn render(
+        &self,
+        _id: WidgetId,
+        geometry: Geometry,
+        _text: Option<&FinalText>,
+        render_context: &mut RenderContext,
+    ) -> Option<u64> {
         let mut rect = LayoutRect::new(
             LayoutPoint::new(geometry.position.x, geometry.position.y),
             LayoutSize::new(geometry.size.width, geometry.size.height),

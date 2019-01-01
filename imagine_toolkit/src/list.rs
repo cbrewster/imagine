@@ -1,16 +1,12 @@
-use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
+use imagine::{BoxConstraint, LayoutContext, Position, Size, Widget, WidgetId};
 
 pub struct List {
     widgets: Vec<WidgetId>,
-    current_index: usize,
 }
 
 impl List {
     pub fn new(widgets: Vec<WidgetId>) -> List {
-        List {
-            widgets,
-            current_index: 0,
-        }
+        List { widgets }
     }
 }
 
@@ -20,33 +16,24 @@ impl Widget for List {
     }
 
     fn layout(
-        &mut self,
+        &self,
+        _id: WidgetId,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        size: Option<Size>,
-    ) -> LayoutResult {
-        match size {
-            None => {
-                self.current_index = 0;
-            }
-            Some(_) => {
-                self.current_index += 1;
+    ) -> Size {
+        let mut current_y = 0.0;
+        for child in &self.widgets {
+            let child_size = layout_context.layout_widget(
+                *child,
+                BoxConstraint::new(
+                    Size::new(box_constraint.max.width, 0.0),
+                    Size::new(box_constraint.max.width, std::f32::INFINITY),
+                ),
+            );
 
-                if self.current_index >= self.widgets.len() {
-                    let mut height = 0.0;
-
-                    for widget in &self.widgets {
-                        let size = layout_context.get_size(*widget);
-                        layout_context.set_position(*widget, Position::new(0.0, height));
-                        height += size.height;
-                    }
-
-                    return LayoutResult::Size(Size::new(box_constraint.max.width, height));
-                }
-            }
+            layout_context.set_position(*child, Position::new(0.0, current_y));
+            current_y += child_size.height;
         }
-        let child_constraint =
-            BoxConstraint::new(Size::new(box_constraint.max.width, 0.0), box_constraint.max);
-        LayoutResult::RequestChildSize(self.widgets[self.current_index], child_constraint)
+        box_constraint.constrain(Size::new(box_constraint.max.width, current_y))
     }
 }

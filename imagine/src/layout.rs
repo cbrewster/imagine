@@ -1,6 +1,6 @@
-use crate::{text::FinalText, WidgetId};
+use crate::{text::FinalText, WidgetComponent, WidgetId};
 use rusttype::Font;
-use specs::{Component, DenseVecStorage, WriteStorage};
+use specs::{Component, DenseVecStorage, ReadStorage, WriteStorage};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Geometry {
@@ -90,11 +90,6 @@ fn clamp(input: f32, min: f32, max: f32) -> f32 {
     }
 }
 
-pub enum LayoutResult {
-    Size(Size),
-    RequestChildSize(WidgetId, BoxConstraint),
-}
-
 impl Component for Position {
     type Storage = DenseVecStorage<Self>;
 }
@@ -106,6 +101,8 @@ impl Component for Size {
 pub struct LayoutContext<'a, 'b> {
     positions: &'a mut WriteStorage<'b, Position>,
     sizes: &'a mut WriteStorage<'b, Size>,
+    text: &'a mut WriteStorage<'b, FinalText>,
+    widgets: &'a ReadStorage<'b, WidgetComponent>,
     font: &'a Font<'static>,
 }
 
@@ -113,11 +110,15 @@ impl<'a, 'b> LayoutContext<'a, 'b> {
     pub(crate) fn new(
         positions: &'a mut WriteStorage<'b, Position>,
         sizes: &'a mut WriteStorage<'b, Size>,
+        text: &'a mut WriteStorage<'b, FinalText>,
+        widgets: &'a ReadStorage<'b, WidgetComponent>,
         font: &'a Font<'static>,
     ) -> LayoutContext<'a, 'b> {
         LayoutContext {
             positions,
             sizes,
+            text,
+            widgets,
             font,
         }
     }
@@ -132,5 +133,19 @@ impl<'a, 'b> LayoutContext<'a, 'b> {
 
     pub fn layout_text(&self, text: &str) -> FinalText {
         FinalText::new(self.font, text)
+    }
+
+    pub fn set_text(&mut self, widget: WidgetId, text: FinalText) {
+        self.text.insert(widget.0, text).ok();
+    }
+
+    pub fn layout_widget(&mut self, widget_id: WidgetId, box_constraint: BoxConstraint) -> Size {
+        let widget = self
+            .widgets
+            .get(widget_id.0)
+            .expect("Could not find widget during layout.");
+        let size = widget.layout(widget_id, self, box_constraint);
+        self.sizes.insert(widget_id.0, size).ok();
+        size
     }
 }

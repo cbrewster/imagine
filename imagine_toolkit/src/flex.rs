@@ -1,11 +1,5 @@
-use imagine::{BoxConstraint, LayoutContext, LayoutResult, Position, Size, Widget, WidgetId};
+use imagine::{BoxConstraint, LayoutContext, Position, Size, Widget, WidgetId};
 use std::any::Any;
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-enum FlexPhase {
-    NonFlex,
-    Flex,
-}
 
 #[derive(Copy, Clone)]
 pub enum FlexDirection {
@@ -61,15 +55,19 @@ pub enum FlexItem {
     Flex(WidgetId, usize),
 }
 
+impl FlexItem {
+    pub fn widget(self) -> WidgetId {
+        match self {
+            FlexItem::Flex(widget, _) => widget,
+            FlexItem::NonFlex(widget) => widget,
+        }
+    }
+}
+
 pub struct Flex {
     children: Vec<FlexItem>,
-    index: usize,
-    phase: FlexPhase,
     flex_direction: FlexDirection,
     flex_align: FlexAlign,
-    non_flex_major: f32,
-    total_flex: usize,
-    minor: f32,
 }
 
 impl Flex {
@@ -80,140 +78,96 @@ impl Flex {
     ) -> Flex {
         Flex {
             children,
-            index: 0,
             flex_direction,
             flex_align,
-            phase: FlexPhase::NonFlex,
-            non_flex_major: 0.0,
-            total_flex: 0,
-            minor: 0.0,
         }
-    }
-}
-
-impl Flex {
-    fn get_next(&self, start: usize) -> Option<usize> {
-        for index in start..self.children.len() {
-            match (self.phase, self.children[index]) {
-                (FlexPhase::Flex, FlexItem::Flex(..)) => return Some(index),
-                (FlexPhase::NonFlex, FlexItem::NonFlex(..)) => return Some(index),
-                _ => continue,
-            }
-        }
-        None
-    }
-
-    fn position_children(
-        &self,
-        box_constraint: BoxConstraint,
-        layout_context: &mut LayoutContext,
-    ) -> LayoutResult {
-        let mut major = 0.0;
-        for child in &self.children {
-            let child = match child {
-                FlexItem::Flex(child, _) => *child,
-                FlexItem::NonFlex(child) => *child,
-            };
-            let child_size = layout_context.get_size(child);
-
-            let minor = match self.flex_align {
-                FlexAlign::Top => 0.0,
-                FlexAlign::Middle => {
-                    (self.minor - self.flex_direction.minor_axis(child_size)) / 2.0
-                }
-                FlexAlign::Baseline => self.minor - self.flex_direction.minor_axis(child_size),
-            };
-
-            layout_context.set_position(
-                child,
-                self.flex_direction.major_minor_to_position(major, minor),
-            );
-
-            major += self.flex_direction.major_axis(child_size);
-        }
-        let total_major = self.flex_direction.major_axis(box_constraint.max);
-
-        LayoutResult::Size(
-            self.flex_direction
-                .major_minor_to_size(total_major, self.minor),
-        )
     }
 }
 
 impl Widget for Flex {
     fn layout(
-        &mut self,
+        &self,
+        _id: WidgetId,
         layout_context: &mut LayoutContext,
         box_constraint: BoxConstraint,
-        size: Option<Size>,
-    ) -> LayoutResult {
-        match size {
-            None => {
-                if self.children.is_empty() {
-                    return LayoutResult::Size(box_constraint.min);
-                }
-                self.phase = FlexPhase::NonFlex;
-                self.non_flex_major = 0.0;
-                self.minor = 0.0;
-                self.total_flex = self
-                    .children
-                    .iter()
-                    .map(|child| match child {
-                        FlexItem::NonFlex(..) => 0,
-                        FlexItem::Flex(_, flex) => *flex,
-                    })
-                    .sum();
+    ) -> Size {
+        let mut flex_widgets = vec![];
+        let mut non_flex_widgets = vec![];
+        let mut total_flex = 0;
+        let mut non_flex_major = 0.0;
+        let mut max_minor: f32 = 0.0;
 
-                if let Some(index) = self.get_next(0) {
-                    self.index = index;
-                } else {
-                    self.phase = FlexPhase::Flex;
-                    self.index = 0;
+        // Separate out flex and non-flex children
+        for child in &self.children {
+            match child {
+                FlexItem::Flex(widget, flex) => {
+                    total_flex += flex;
+                    flex_widgets.push((widget, flex));
                 }
-            }
-            Some(size) => {
-                self.minor = self.minor.max(self.flex_direction.minor_axis(size));
-
-                if let FlexItem::NonFlex(_) = self.children[self.index] {
-                    self.non_flex_major += self.flex_direction.major_axis(size);
-                }
-
-                if let Some(index) = self.get_next(self.index + 1) {
-                    self.index = index;
-                } else if self.phase == FlexPhase::NonFlex {
-                    self.phase = FlexPhase::Flex;
-                    if let Some(index) = self.get_next(0) {
-                        self.index = index;
-                    } else {
-                        return self.position_children(box_constraint, layout_context);
-                    }
-                } else {
-                    return self.position_children(box_constraint, layout_context);
+                FlexItem::NonFlex(widget) => {
+                    non_flex_widgets.push(widget);
                 }
             }
         }
-        let (min_major, max_major, child) = match self.children[self.index] {
-            FlexItem::NonFlex(child) => (0.0, std::f32::INFINITY, child),
-            FlexItem::Flex(child, flex) => {
-                let total_major = self.flex_direction.major_axis(box_constraint.max);
-                let remaining = (total_major - self.non_flex_major).max(0.0);
-                let major = remaining * (flex as f32 / self.total_flex as f32);
 
-                (major, major, child)
-            }
-        };
-        let child_constraint = match self.flex_direction {
-            FlexDirection::Horizontal => BoxConstraint::new(
-                Size::new(min_major, box_constraint.min.height),
-                Size::new(max_major, box_constraint.max.height),
-            ),
-            FlexDirection::Vertical => BoxConstraint::new(
-                Size::new(box_constraint.min.width, min_major),
-                Size::new(box_constraint.max.width, max_major),
-            ),
-        };
+        // Layout non-flex children first
+        for widget in non_flex_widgets {
+            let child_constraint = match self.flex_direction {
+                FlexDirection::Horizontal => BoxConstraint::new(
+                    Size::new(0.0, box_constraint.min.height),
+                    Size::new(std::f32::INFINITY, box_constraint.max.height),
+                ),
+                FlexDirection::Vertical => BoxConstraint::new(
+                    Size::new(box_constraint.min.width, 0.0),
+                    Size::new(box_constraint.max.width, std::f32::INFINITY),
+                ),
+            };
+            let child_size = layout_context.layout_widget(*widget, child_constraint);
+            max_minor = max_minor.max(self.flex_direction.minor_axis(child_size));
+            non_flex_major += self.flex_direction.major_axis(child_size);
+        }
 
-        LayoutResult::RequestChildSize(child, child_constraint)
+        // Layout flex children
+        for (widget, flex) in flex_widgets {
+            let total_major = self.flex_direction.major_axis(box_constraint.max);
+            let remaining = (total_major - non_flex_major).max(0.0);
+            let major = remaining * (*flex as f32 / total_flex as f32);
+
+            let child_constraint = match self.flex_direction {
+                FlexDirection::Horizontal => BoxConstraint::new(
+                    Size::new(major, box_constraint.min.height),
+                    Size::new(major, box_constraint.max.height),
+                ),
+                FlexDirection::Vertical => BoxConstraint::new(
+                    Size::new(box_constraint.min.width, major),
+                    Size::new(box_constraint.max.width, major),
+                ),
+            };
+
+            let child_size = layout_context.layout_widget(*widget, child_constraint);
+            max_minor = max_minor.max(self.flex_direction.minor_axis(child_size));
+        }
+
+        let mut current_major = 0.0;
+        for child in self.children.iter().map(|item| item.widget()) {
+            let size = layout_context.get_size(child);
+            let minor = match self.flex_align {
+                FlexAlign::Top => 0.0,
+                FlexAlign::Middle => (max_minor - self.flex_direction.minor_axis(size)) / 2.0,
+                FlexAlign::Baseline => max_minor - self.flex_direction.minor_axis(size),
+            };
+
+            let position = self
+                .flex_direction
+                .major_minor_to_position(current_major, minor);
+
+            layout_context.set_position(child, position);
+
+            current_major += self.flex_direction.major_axis(size);
+        }
+
+        self.flex_direction
+            .major_minor_to_size(current_major, max_minor)
     }
 
     fn children(&self) -> Vec<WidgetId> {

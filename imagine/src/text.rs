@@ -1,10 +1,15 @@
 use rusttype::{point, Font, Scale};
 use webrender::api::*;
+use specs::{Component, DenseVecStorage};
 
 #[derive(Debug)]
 pub struct FinalText {
     glyphs: Vec<GlyphInstance>,
     width: f32,
+}
+
+impl Component for FinalText {
+    type Storage = DenseVecStorage<Self>;
 }
 
 impl FinalText {

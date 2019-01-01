@@ -1,8 +1,8 @@
 use crate::{
-    interactive::Interactive,
-    layout::{BoxConstraint, LayoutContext, LayoutResult, Position, Size},
+    layout::{BoxConstraint, LayoutContext, Position, Size},
+    text::FinalText,
     widget::WidgetComponent,
-    WidgetId, WindowComponent,
+    WindowComponent,
 };
 use specs::{Join, ReadStorage, System, WriteStorage};
 
@@ -12,15 +12,12 @@ impl<'a> System<'a> for LayoutSystem {
     type SystemData = (
         WriteStorage<'a, Size>,
         WriteStorage<'a, Position>,
-        WriteStorage<'a, WidgetComponent>,
+        WriteStorage<'a, FinalText>,
+        ReadStorage<'a, WidgetComponent>,
         ReadStorage<'a, WindowComponent>,
-        ReadStorage<'a, Interactive>,
     );
 
-    fn run(
-        &mut self,
-        (mut sizes, mut positions, mut widgets, windows, interactive): Self::SystemData,
-    ) {
+    fn run(&mut self, (mut sizes, mut positions, mut text, widgets, windows): Self::SystemData) {
         for window in windows.join() {
             if !window.dirty() {
                 continue;
@@ -30,52 +27,16 @@ impl<'a> System<'a> for LayoutSystem {
                 Size::zero(),
                 Size::new(layout_size.width, layout_size.height),
             );
-            request_layout(
-                &mut sizes,
-                &mut positions,
-                &mut widgets,
-                &interactive,
-                constraint,
-                window.root,
-                window,
-            );
-            positions.insert(window.root.0, Position::zero()).ok();
-        }
-    }
-}
 
-fn request_layout<'a>(
-    sizes: &mut WriteStorage<'a, Size>,
-    positions: &mut WriteStorage<'a, Position>,
-    widgets: &mut WriteStorage<'a, WidgetComponent>,
-    interactive: &ReadStorage<'a, Interactive>,
-    constraint: BoxConstraint,
-    widget: WidgetId,
-    window: &WindowComponent,
-) -> Size {
-    let mut size_prev_child = None;
-    loop {
-        let result = widgets.get_mut(widget.0).unwrap().layout(
-            &mut LayoutContext::new(positions, sizes, &window.font),
-            constraint,
-            size_prev_child,
-        );
-        match result {
-            LayoutResult::Size(size) => {
-                sizes.insert(widget.0, size).ok();
-                return size;
-            }
-            LayoutResult::RequestChildSize(child, child_constraint) => {
-                size_prev_child = Some(request_layout(
-                    sizes,
-                    positions,
-                    widgets,
-                    interactive,
-                    child_constraint,
-                    child,
-                    window,
-                ));
-            }
+            let mut layout_context = LayoutContext::new(
+                &mut positions,
+                &mut sizes,
+                &mut text,
+                &widgets,
+                &window.font,
+            );
+            layout_context.layout_widget(window.root, constraint);
+            positions.insert(window.root.0, Position::zero()).ok();
         }
     }
 }

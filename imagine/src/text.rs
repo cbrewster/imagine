@@ -1,5 +1,6 @@
 use rusttype::{point, Font, Scale};
 use webrender::api::*;
+use webrender::api::units::*;
 use specs::{Component, DenseVecStorage};
 
 #[derive(Debug)]
@@ -43,7 +44,8 @@ impl FinalText {
 
     pub fn render(
         &self,
-        info: &LayoutPrimitiveInfo,
+        info: &CommonItemProperties,
+        bounds: LayoutRect,
         origin: LayoutPoint,
         builder: &mut DisplayListBuilder,
         font_instance_key: FontInstanceKey,
@@ -56,7 +58,7 @@ impl FinalText {
                 point: LayoutPoint::new(glyph.point.x + origin.x, glyph.point.y + origin.y),
             })
             .collect::<Vec<_>>();
-        builder.push_text(info, &glyphs, font_instance_key, ColorF::BLACK, None);
+        builder.push_text(info, bounds, &glyphs, font_instance_key, ColorF::BLACK, None);
     }
 
     pub fn width(&self) -> f32 {

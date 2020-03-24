@@ -3,6 +3,7 @@ use imagine::{
 };
 use std::any::Any;
 use webrender::api::*;
+use webrender::api::units::*;
 
 pub enum LabelMessage {
     SetText(String),
@@ -43,14 +44,15 @@ impl Widget for Label {
         render_context: &mut RenderContext,
     ) -> Option<u64> {
         let origin = LayoutPoint::new(geometry.position.x, geometry.position.y);
-        let info = LayoutPrimitiveInfo::new(LayoutRect::new(
+        let rect = LayoutRect::new(
             origin,
             LayoutSize::new(geometry.size.width, geometry.size.height),
-        ));
+        );
 
         if let Some(final_text) = text {
             final_text.render(
-                &info,
+                &CommonItemProperties::new(rect, render_context.current_space_and_clip),
+                rect,
                 origin,
                 render_context.builder,
                 render_context.font_instance_key(),

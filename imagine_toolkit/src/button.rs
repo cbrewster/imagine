@@ -4,6 +4,7 @@ use imagine::{
     Size, Widget, WidgetContext, WidgetId,
 };
 use webrender::api::*;
+use webrender::api::units::*;
 
 pub struct Button {
     pub color: (f32, f32, f32, f32),
@@ -74,16 +75,15 @@ impl Widget for Button {
             rect = rect.inflate(-2.0, -2.0);
         }
 
-        let mut info = LayoutPrimitiveInfo::new(rect);
         let identifier = render_context.next_tag_identifier();
-        info.tag = Some((identifier, 0));
 
         let border_radius = BorderRadius::uniform(4.0);
 
         let clip_id = render_context.builder.define_clip(
-            info.rect,
+            &render_context.current_space_and_clip,
+            rect,
             vec![ComplexClipRegion::new(
-                info.rect,
+                rect,
                 border_radius,
                 ClipMode::Clip,
             )],
@@ -92,18 +92,23 @@ impl Widget for Button {
 
         let (r, g, b, a) = self.color;
 
-        render_context.builder.push_clip_id(clip_id);
-
         render_context
             .builder
-            .push_rect(&info, ColorF::new(r, g, b, a));
-
-        render_context.builder.pop_clip_id();
+            .push_rect(
+                &CommonItemProperties {
+                    clip_rect: rect,
+                    clip_id,
+                    spatial_id: render_context.current_space_and_clip.spatial_id,
+                    hit_info: Some((identifier, 0)),
+                    flags: PrimitiveFlags::empty(),
+                },
+                ColorF::new(r, g, b, a)
+            );
 
         if self.hovered && !self.down {
             render_context.builder.push_box_shadow(
-                &LayoutPrimitiveInfo::new(info.rect.inflate(4.0, 4.0)),
-                info.rect,
+                &CommonItemProperties::new(rect.inflate(4.0, 4.0), render_context.current_space_and_clip),
+                rect,
                 LayoutVector2D::new(0.0, 3.0),
                 ColorF::new(0.0, 0.0, 0.0, 0.2),
                 4.0,

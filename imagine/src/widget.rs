@@ -44,7 +44,7 @@ pub(crate) struct WidgetComponent {
 }
 
 impl std::ops::Deref for WidgetComponent {
-    type Target = Widget;
+    type Target = dyn Widget;
 
     fn deref(&self) -> &(dyn Widget + 'static) {
         self.inner.deref()

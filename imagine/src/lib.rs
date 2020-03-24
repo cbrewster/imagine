@@ -21,6 +21,7 @@ use specs::{
 use std::collections::HashMap;
 use std::mem;
 use webrender::api::*;
+use webrender::api::units::*;
 
 pub use self::{
     interactive::{ClickListener, Interaction, Message, WidgetContext},
@@ -179,7 +180,7 @@ impl<'a, 'b, A: Application> Imagine<'a, 'b, A> {
                 };
 
                 let layout_size: LayoutSize =
-                    framebuffer_size.to_f32() / euclid::TypedScale::new(hidpi_factor as f32);
+                    framebuffer_size.to_f32() / euclid::Scale::new(hidpi_factor as f32);
 
                 window_component.layout_size = layout_size;
             }
@@ -296,6 +297,7 @@ pub struct RenderWindow {
     entity: Entity,
     pipeline_id: PipelineId,
     font_instance_key: FontInstanceKey,
+    show_profiler: bool,
 }
 
 impl RenderWindow {
@@ -331,7 +333,7 @@ impl RenderWindow {
         let opts = webrender::RendererOptions {
             device_pixel_ratio: hidpi_factor as f32,
             clear_color: Some(ColorF::new(0.98, 0.98, 0.98, 1.0)),
-            debug_flags: webrender::DebugFlags::PROFILER_DBG,
+            debug_flags: webrender::DebugFlags::empty(),
             ..webrender::RendererOptions::default()
         };
 
@@ -341,7 +343,7 @@ impl RenderWindow {
         };
         let notifier = Box::new(Notifier::new(events_loop.create_proxy()));
         let (renderer, sender) =
-            webrender::Renderer::new(gl.clone(), notifier, opts, None).unwrap();
+            webrender::Renderer::new(gl.clone(), notifier, opts, None, framebuffer_size).unwrap();
         let api = sender.create_api();
         let document_id = api.add_document(framebuffer_size, 0);
         let epoch = Epoch(0);
@@ -372,6 +374,7 @@ impl RenderWindow {
             entity,
             pipeline_id,
             font_instance_key,
+            show_profiler: false,
         })
     }
 
@@ -405,9 +408,8 @@ impl RenderWindow {
                     DeviceIntSize::new(size.width as i32, size.height as i32)
                 };
 
-                self.api.set_window_parameters(
+                self.api.set_document_view(
                     self.document_id,
-                    framebuffer_size,
                     DeviceIntRect::new(DeviceIntPoint::zero(), framebuffer_size),
                     hidpi_factor as f32,
                 );
@@ -422,8 +424,14 @@ impl RenderWindow {
                     },
                 ..
             } => {
-                self.renderer
-                    .toggle_debug_flags(webrender::DebugFlags::PROFILER_DBG);
+                if !self.show_profiler {
+                    self.renderer
+                        .set_debug_flags(webrender::DebugFlags::PROFILER_DBG);
+                } else {
+                    self.renderer
+                        .set_debug_flags(webrender::DebugFlags::empty());
+                }
+                self.show_profiler = !self.show_profiler;
                 EventResponse::Continue
             }
             glutin::WindowEvent::CursorMoved { position, .. } => {
@@ -534,7 +542,7 @@ impl Notifier {
 }
 
 impl RenderNotifier for Notifier {
-    fn clone(&self) -> Box<RenderNotifier> {
+    fn clone(&self) -> Box<dyn RenderNotifier> {
         Box::new(Notifier {
             events_proxy: self.events_proxy.clone(),
         })

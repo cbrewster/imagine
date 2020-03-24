@@ -4,6 +4,7 @@ use crate::{
 };
 use specs::{Entities, Join, ReadStorage, System, WriteStorage};
 use webrender::api::*;
+use webrender::api::units::*;
 
 pub(crate) struct RenderSystem;
 
@@ -29,20 +30,22 @@ impl<'a> System<'a> for RenderSystem {
 
             let mut builder = DisplayListBuilder::new(window.pipeline_id, window.layout_size());
 
-            let bounds = LayoutRect::new(LayoutPoint::zero(), builder.content_size());
-
-            let info = LayoutPrimitiveInfo::new(bounds);
-
             builder.push_stacking_context(
-                &info,
+                LayoutPoint::zero(),
+                SpatialId::root_reference_frame(window.pipeline_id),
+                PrimitiveFlags::empty(),
                 None,
                 TransformStyle::Flat,
                 MixBlendMode::Normal,
                 &[],
+                &[],
+                &[],
                 RasterSpace::Screen,
+                false,
+                false,
             );
 
-            let mut render_context = RenderContext::new(&mut builder, window.font_instance_key);
+            let mut render_context = RenderContext::new(&mut builder, window.font_instance_key, window.pipeline_id);
 
             fn render_entities(
                 children: &[WidgetId],

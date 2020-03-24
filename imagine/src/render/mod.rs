@@ -1,7 +1,8 @@
-use webrender::api::{DisplayListBuilder, FontInstanceKey};
+use webrender::api::{DisplayListBuilder, FontInstanceKey, SpaceAndClipInfo, PipelineId};
 
 pub struct RenderContext<'a> {
     pub builder: &'a mut DisplayListBuilder,
+    pub current_space_and_clip: SpaceAndClipInfo,
     next_tag_identifier: u64,
     font_instance_key: FontInstanceKey,
 }
@@ -10,11 +11,13 @@ impl<'a> RenderContext<'a> {
     pub(crate) fn new(
         builder: &'a mut DisplayListBuilder,
         font_instance_key: FontInstanceKey,
+        pipeline_id: PipelineId,
     ) -> RenderContext<'a> {
         RenderContext {
             builder,
             next_tag_identifier: 0,
             font_instance_key,
+            current_space_and_clip: SpaceAndClipInfo::root_scroll(pipeline_id),
         }
     }
 

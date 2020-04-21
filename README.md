@@ -1,6 +1,6 @@
 ## Imagine
 
-An experimental Rust GUI.
+An experimental Rust GUI framework.
 
 > **WARNING**
 >
